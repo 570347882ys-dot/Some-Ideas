@@ -183,11 +183,106 @@ def generate_comprehensive_data(base_salary, performance_salary, bonus_base_mont
     
     return pd.DataFrame(data)
 
+# ---------------------- 图表主题配置 ----------------------
+def get_chart_theme(theme_name):
+    """获取图表主题配置"""
+    themes = {
+        "自动跟随系统": {
+            "template": None,  # 使用默认，跟随系统
+            "colors": {
+                "primary": "#4CAF50",
+                "secondary": "#2196F3",
+                "tertiary": "#FF9800",
+                "quaternary": "#9C27B0",
+                "success": "#4CAF50",
+                "warning": "#FF9800",
+                "danger": "#F44336",
+                "info": "#2196F3",
+                "text": None,  # 自动
+                "background": None  # 自动
+            }
+        },
+        "深色模式": {
+            "template": "plotly_dark",
+            "colors": {
+                "primary": "#4CAF50",
+                "secondary": "#2196F3",
+                "tertiary": "#FF9800",
+                "quaternary": "#9C27B0",
+                "success": "#4CAF50",
+                "warning": "#FF9800",
+                "danger": "#F44336",
+                "info": "#2196F3",
+                "text": "#FFFFFF",
+                "background": "#1E1E1E"
+            }
+        },
+        "浅色模式": {
+            "template": "plotly_white",
+            "colors": {
+                "primary": "#4CAF50",
+                "secondary": "#2196F3",
+                "tertiary": "#FF9800",
+                "quaternary": "#9C27B0",
+                "success": "#4CAF50",
+                "warning": "#FF9800",
+                "danger": "#F44336",
+                "info": "#2196F3",
+                "text": "#000000",
+                "background": "#FFFFFF"
+            }
+        },
+        "蓝色调方案": {
+            "template": None,
+            "colors": {
+                "primary": "#2196F3",
+                "secondary": "#03A9F4",
+                "tertiary": "#00BCD4",
+                "quaternary": "#0097A7",
+                "success": "#4CAF50",
+                "warning": "#FF9800",
+                "danger": "#F44336",
+                "info": "#2196F3",
+                "text": "#000000",
+                "background": "#FFFFFF"
+            }
+        },
+        "暖色调方案": {
+            "template": None,
+            "colors": {
+                "primary": "#FF9800",
+                "secondary": "#FF5722",
+                "tertiary": "#FFC107",
+                "quaternary": "#FF7043",
+                "success": "#4CAF50",
+                "warning": "#FF9800",
+                "danger": "#F44336",
+                "info": "#2196F3",
+                "text": "#000000",
+                "background": "#FFFFFF"
+            }
+        }
+    }
+    
+    return themes.get(theme_name, themes["自动跟随系统"])
+
+# 获取当前系统主题
+def get_system_theme():
+    """获取系统主题（简化的检测方法）"""
+    try:
+        # 尝试检测系统主题（注意：Streamlit本身不直接支持，这里使用简化的方法）
+        # 在实际使用中，可能需要通过JavaScript检测
+        return "深色模式"  # 默认返回深色，用户可以在侧边栏手动调整
+    except:
+        return "浅色模式"
+
 # ---------------------- 初始化session state ----------------------
 if 'salary_history' not in st.session_state:
     st.session_state.salary_history = []
 if 'history_count' not in st.session_state:
     st.session_state.history_count = 0
+if 'current_theme' not in st.session_state:
+    st.session_state.current_theme = "自动跟随系统"
 
 def add_to_history(current_result, params):
     """添加当前方案到历史记录"""
@@ -221,6 +316,12 @@ st.markdown("""
     }
     .stButton > button {
         width: 100%;
+    }
+    /* 深色模式适配 */
+    @media (prefers-color-scheme: dark) {
+        .stApp {
+            background-color: #0E1117;
+        }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -351,14 +452,24 @@ with st.sidebar:
             st.session_state.history_count = 0
             st.rerun()
     
-    # 图表外观设置
-    st.subheader("📊 图表外观设置")
+    # 图表外观设置 - 优化版
+    st.subheader("🎨 图表外观设置")
     
-    chart_theme = st.selectbox(
+    # 检测当前系统主题
+    system_theme = get_system_theme()
+    
+    # 主题选择
+    chart_theme_option = st.selectbox(
         "图表主题",
-        ["plotly", "plotly_white", "plotly_dark", "ggplot2", "seaborn", "simple_white"],
+        ["自动跟随系统", "深色模式", "浅色模式", "蓝色调方案", "暖色调方案"],
         help="选择图表颜色主题"
     )
+    
+    # 更新当前主题
+    st.session_state.current_theme = chart_theme_option
+    
+    # 获取主题配置
+    theme_config = get_chart_theme(chart_theme_option)
     
     chart_height = st.slider("图表高度", 300, 800, 500, 50)
     
@@ -383,6 +494,11 @@ with st.sidebar:
             value=include_performance_in_bonus,
             help="原工作的年终奖计算方式"
         )
+
+# 获取当前主题配置
+theme_config = get_chart_theme(st.session_state.current_theme)
+chart_template = theme_config["template"]
+theme_colors = theme_config["colors"]
 
 # ---------------------- 主显示区域 ----------------------
 # 计算当前方案结果
@@ -477,9 +593,9 @@ with tab1:
         y=comprehensive_data['收入转化率'] * 100,
         mode='lines',
         name='收入转化率',
-        line=dict(color='#4CAF50', width=4),
+        line=dict(color=theme_colors['primary'], width=4),
         fill='tozeroy',
-        fillcolor='rgba(76, 175, 80, 0.2)',
+        fillcolor=f'rgba({int(theme_colors["primary"][1:3], 16)}, {int(theme_colors["primary"][3:5], 16)}, {int(theme_colors["primary"][5:7], 16)}, 0.2)',
         hovertemplate='<b>收入转化率</b><br>月薪: %{x:,.0f}元<br>转化率: %{y:.1f}%<extra></extra>'
     ))
     
@@ -489,7 +605,7 @@ with tab1:
         y=comprehensive_data['税后年收入'] / 10000,  # 转换为万元
         mode='lines',
         name='税后年收入(万元)',
-        line=dict(color='#2196F3', width=3, dash='dash'),
+        line=dict(color=theme_colors['secondary'], width=3, dash='dash'),
         yaxis='y2',
         hovertemplate='<b>税后年收入</b><br>月薪: %{x:,.0f}元<br>年收入: %{y:.1f}万元<extra></extra>'
     ))
@@ -500,7 +616,7 @@ with tab1:
         y=comprehensive_data['边际税率'] * 100,
         mode='lines',
         name='边际税率(%)',
-        line=dict(color='#FF9800', width=3, dash='dot'),
+        line=dict(color=theme_colors['tertiary'], width=3, dash='dot'),
         yaxis='y3',
         hovertemplate='<b>边际税率</b><br>月薪: %{x:,.0f}元<br>税率: %{y:.1f}%<extra></extra>'
     ))
@@ -513,13 +629,13 @@ with tab1:
         name='当前薪资点',
         marker=dict(
             size=16,
-            color='#FF5252',
+            color=theme_colors['danger'],
             symbol='star',
             line=dict(width=2, color='white')
         ),
         text=[f'{current_conversion_rate:.1f}%'],
         textposition='top center',
-        textfont=dict(size=14, color='#FF5252', family="Arial Black"),
+        textfont=dict(size=14, color=theme_colors['danger'], family="Arial Black"),
         hovertemplate='<b>当前薪资点</b><br>月薪: %{x:,.0f}元<br>转化率: %{y:.1f}%<br>税后年收入: %{text}<extra></extra>'
     ))
     
@@ -527,80 +643,91 @@ with tab1:
     fig_comprehensive.add_vline(
         x=current_monthly, 
         line_dash="solid", 
-        line_color="rgba(255, 82, 82, 0.7)",
+        line_color=f"rgba({int(theme_colors['danger'][1:3], 16)}, {int(theme_colors['danger'][3:5], 16)}, {int(theme_colors['danger'][5:7], 16)}, 0.7)",
         line_width=2,
         annotation_text=f"当前月薪: {current_monthly:,.0f}元",
         annotation_position="top right",
-        annotation_font=dict(color='#FF5252', size=12),
+        annotation_font=dict(color=theme_colors['danger'], size=12),
         annotation_bgcolor="rgba(255, 255, 255, 0.8)"
     )
     
     # 6. 添加收入转化率参考线（70%, 80%, 90%）
-    for rate, color, name in [(70, 'rgba(255, 152, 0, 0.3)', '70%参考线'), 
-                              (80, 'rgba(76, 175, 80, 0.3)', '80%参考线'), 
-                              (90, 'rgba(33, 150, 243, 0.3)', '90%参考线')]:
+    for rate, name in [(70, '70%参考线'), (80, '80%参考线'), (90, '90%参考线')]:
         fig_comprehensive.add_hline(
             y=rate,
             line_dash="dash",
-            line_color=color,
+            line_color="rgba(128, 128, 128, 0.3)",
             line_width=1,
             annotation_text=f"{name}",
             annotation_position="right",
             annotation_font=dict(size=10)
         )
     
+    # 获取文本颜色
+    text_color = theme_colors.get('text', '#000000')
+    if text_color is None:
+        # 根据主题模板自动选择
+        if chart_template == "plotly_dark":
+            text_color = "#FFFFFF"
+        else:
+            text_color = "#000000"
+    
     # 更新布局
     fig_comprehensive.update_layout(
         title=dict(
             text='薪资综合分析曲线 - 以收入转化率为核心指标 (月薪范围: 5,000-100,000元)',
-            font=dict(size=20, color='#2C3E50'),
+            font=dict(size=20, color=text_color),
             x=0.5,
             xanchor='center'
         ),
         xaxis=dict(
             title=dict(
                 text="月度总工资 (元)",
-                font=dict(size=14, color='#7F8C8D')
+                font=dict(size=14, color=text_color)
             ),
-            gridcolor='rgba(0,0,0,0.05)',
+            gridcolor='rgba(128, 128, 128, 0.1)',
             showgrid=True,
             tickformat=',.0f',
-            range=[5000, 100000]  # 设置x轴显示范围
+            range=[5000, 100000],  # 设置x轴显示范围
+            tickfont=dict(color=text_color)
         ),
         yaxis=dict(
             title=dict(
                 text="收入转化率 (%)",
-                font=dict(size=14, color='#4CAF50')
+                font=dict(size=14, color=theme_colors['primary'])
             ),
-            gridcolor='rgba(0,0,0,0.05)',
+            gridcolor='rgba(128, 128, 128, 0.1)',
             showgrid=True,
-            range=[50, 100]  # 调整y轴范围以更好地显示数据
+            range=[50, 100],  # 调整y轴范围以更好地显示数据
+            tickfont=dict(color=text_color)
         ),
         yaxis2=dict(
             title=dict(
                 text="税后年收入 (万元)",
-                font=dict(size=14, color='#2196F3')
+                font=dict(size=14, color=theme_colors['secondary'])
             ),
             anchor="x",
             overlaying="y",
             side="right",
-            gridcolor='rgba(0,0,0,0.02)',
-            showgrid=False
+            gridcolor='rgba(128, 128, 128, 0.05)',
+            showgrid=False,
+            tickfont=dict(color=text_color)
         ),
         yaxis3=dict(
             title=dict(
                 text="边际税率 (%)",
-                font=dict(size=14, color='#FF9800')
+                font=dict(size=14, color=theme_colors['tertiary'])
             ),
             anchor="free",
             overlaying="y",
             side="right",
             position=0.85,
-            gridcolor='rgba(0,0,0,0.02)',
-            showgrid=False
+            gridcolor='rgba(128, 128, 128, 0.05)',
+            showgrid=False,
+            tickfont=dict(color=text_color)
         ),
         hovermode="x unified",
-        template=chart_theme,
+        template=chart_template,
         height=chart_height,
         legend=dict(
             orientation="h",
@@ -608,12 +735,15 @@ with tab1:
             y=1.02,
             xanchor="right",
             x=1,
-            bgcolor="rgba(255, 255, 255, 0.8)",
-            bordercolor="rgba(0,0,0,0.1)",
-            borderwidth=1
+            bgcolor=f"rgba({int(text_color[1:3], 16) if text_color.startswith('#') else 0}, "
+                   f"{int(text_color[3:5], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, "
+                   f"{int(text_color[5:7], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, 0.1)",
+            bordercolor="rgba(128, 128, 128, 0.3)",
+            borderwidth=1,
+            font=dict(color=text_color)
         ),
-        plot_bgcolor='white',
-        paper_bgcolor='white',
+        plot_bgcolor=theme_colors.get('background', 'white'),
+        paper_bgcolor=theme_colors.get('background', 'white'),
         margin=dict(t=80, b=80, l=80, r=100)
     )
     
@@ -625,8 +755,10 @@ with tab1:
         yref="paper",
         text="💡 收入转化率 = 税后收入 / 税前收入",
         showarrow=False,
-        font=dict(size=12, color='#7F8C8D'),
-        bgcolor="rgba(255, 255, 255, 0.7)",
+        font=dict(size=12, color=text_color),
+        bgcolor=f"rgba({int(text_color[1:3], 16) if text_color.startswith('#') else 0}, "
+               f"{int(text_color[3:5], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, "
+               f"{int(text_color[5:7], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, 0.1)",
         bordercolor="#DDD",
         borderwidth=1,
         borderpad=4
@@ -655,7 +787,7 @@ with tab2:
             current_result['个人所得税'],
             current_result['社保公积金(年)']
         ],
-        '颜色': ['#4CAF50', '#F44336', '#2196F3']
+        '颜色': [theme_colors['primary'], theme_colors['danger'], theme_colors['secondary']]
     })
     
     fig_pie = px.pie(
@@ -667,15 +799,24 @@ with tab2:
         color_discrete_map=dict(zip(income_components['项目'], income_components['颜色']))
     )
     
+    # 更新文本颜色
+    text_color = theme_colors.get('text', '#000000')
+    if text_color is None and chart_template == "plotly_dark":
+        text_color = "#FFFFFF"
+    
     fig_pie.update_traces(
         textposition='inside', 
         textinfo='percent+label',
-        hovertemplate="<b>%{label}</b><br>金额: %{value:,.0f}元<br>占比: %{percent}"
+        hovertemplate="<b>%{label}</b><br>金额: %{value:,.0f}元<br>占比: %{percent}",
+        textfont=dict(color=text_color)
     )
     
     fig_pie.update_layout(
-        template=chart_theme,
-        height=chart_height
+        template=chart_template,
+        height=chart_height,
+        paper_bgcolor=theme_colors.get('background', 'white'),
+        font=dict(color=text_color),
+        title_font=dict(color=text_color)
     )
     
     st.plotly_chart(fig_pie, use_container_width=True)
@@ -692,6 +833,11 @@ with tab3:
         labels={'边际税率': '边际税率', '月薪': '月度总工资 (元)'}
     )
     
+    # 获取文本颜色
+    text_color = theme_colors.get('text', '#000000')
+    if text_color is None and chart_template == "plotly_dark":
+        text_color = "#FFFFFF"
+    
     # 添加税率区间标注
     tax_thresholds = [36000/12, 144000/12, 300000/12, 420000/12, 660000/12, 960000/12]
     tax_rates = ['3%', '10%', '20%', '25%', '30%', '35%', '45%']
@@ -700,32 +846,41 @@ with tab3:
         fig_marginal.add_vline(
             x=threshold,
             line_dash="dot",
-            line_color="gray",
+            line_color="rgba(128, 128, 128, 0.5)",
             opacity=0.5,
             annotation_text=f"{tax_rates[i]}→{tax_rates[i+1]}",
-            annotation_position="top"
+            annotation_position="top",
+            annotation_font=dict(color=text_color)
         )
     
     # 添加当前月薪标记
     fig_marginal.add_vline(
         x=current_monthly,
         line_dash="dash",
-        line_color="red",
+        line_color=theme_colors['danger'],
         annotation_text=f"当前: {current_result['边际税率']*100:.1f}%",
-        annotation_position="bottom"
+        annotation_position="bottom",
+        annotation_font=dict(color=text_color)
     )
     
     fig_marginal.update_layout(
-        template=chart_theme,
+        template=chart_template,
         height=chart_height,
         xaxis=dict(
             range=[5000, 100000],  # 设置x轴显示范围
-            tickformat=',.0f'
+            tickformat=',.0f',
+            tickfont=dict(color=text_color),
+            title_font=dict(color=text_color)
         ),
         yaxis=dict(
             tickformat=".0%",
-            title="边际税率"
-        )
+            title="边际税率",
+            tickfont=dict(color=text_color),
+            title_font=dict(color=text_color)
+        ),
+        paper_bgcolor=theme_colors.get('background', 'white'),
+        font=dict(color=text_color),
+        title_font=dict(color=text_color)
     )
     
     st.plotly_chart(fig_marginal, use_container_width=True)
@@ -747,6 +902,17 @@ with tab4:
         '类型': ['收入', '收入', '扣除', '扣除', '净收入']
     })
     
+    color_map = {
+        '收入': theme_colors['primary'],
+        '扣除': theme_colors['danger'],
+        '净收入': theme_colors['secondary']
+    }
+    
+    # 获取文本颜色
+    text_color = theme_colors.get('text', '#000000')
+    if text_color is None and chart_template == "plotly_dark":
+        text_color = "#FFFFFF"
+    
     fig_monthly = px.bar(
         monthly_breakdown,
         x='项目',
@@ -754,20 +920,26 @@ with tab4:
         color='类型',
         title='月度工资结构分解',
         text='金额',
-        color_discrete_map={'收入': '#4CAF50', '扣除': '#F44336', '净收入': '#2196F3'}
+        color_discrete_map=color_map
     )
     
     fig_monthly.update_traces(
         texttemplate='%{y:,.0f}元',
-        textposition='outside'
+        textposition='outside',
+        textfont=dict(color=text_color)
     )
     
     fig_monthly.update_layout(
-        template=chart_theme,
+        template=chart_template,
         height=chart_height,
         xaxis_title="",
         yaxis_title="金额 (元)",
-        showlegend=True
+        showlegend=True,
+        paper_bgcolor=theme_colors.get('background', 'white'),
+        font=dict(color=text_color),
+        title_font=dict(color=text_color),
+        xaxis=dict(tickfont=dict(color=text_color)),
+        yaxis=dict(tickfont=dict(color=text_color))
     )
     
     st.plotly_chart(fig_monthly, use_container_width=True)
@@ -885,56 +1057,44 @@ with tab5:
         
         fig_history = go.Figure()
         
-        # 添加多条曲线
-        fig_history.add_trace(go.Scatter(
-            x=history_df['调整序号'],
-            y=history_df['月度总工资(元)'],
-            mode='lines+markers',
-            name='月度总工资',
-            line=dict(color='#4CAF50', width=3),
-            marker=dict(size=8),
-            yaxis='y',
-            hovertemplate='<b>月度总工资</b><br>调整: %{x}<br>金额: %{y:,.0f}元<extra></extra>'
-        ))
+        # 定义曲线颜色（与主题一致）
+        trace_colors = [
+            theme_colors['primary'],   # 月度总工资
+            theme_colors['secondary'], # 年度总工资
+            theme_colors['tertiary'],  # 税后月均工资
+            theme_colors['quaternary'] # 收入转化率
+        ]
         
-        fig_history.add_trace(go.Scatter(
-            x=history_df['调整序号'],
-            y=history_df['年度总工资(元)'],
-            mode='lines+markers',
-            name='年度总工资',
-            line=dict(color='#2196F3', width=3, dash='dash'),
-            marker=dict(size=8),
-            yaxis='y2',
-            hovertemplate='<b>年度总工资</b><br>调整: %{x}<br>金额: %{y:,.0f}元<extra></extra>'
-        ))
+        # 添加多条曲线 - 优化图例文字颜色
+        traces_data = [
+            ('月度总工资', '月度总工资(元)', 'y', None),
+            ('年度总工资', '年度总工资(元)', 'y2', 'dash'),
+            ('税后月均工资', '税后月均工资(元)', 'y3', 'dot'),
+            ('收入转化率', '收入转化率(%)', 'y4', 'dashdot')
+        ]
         
-        fig_history.add_trace(go.Scatter(
-            x=history_df['调整序号'],
-            y=history_df['税后月均工资(元)'],
-            mode='lines+markers',
-            name='税后月均工资',
-            line=dict(color='#FF9800', width=3, dash='dot'),
-            marker=dict(size=8),
-            yaxis='y3',
-            hovertemplate='<b>税后月均工资</b><br>调整: %{x}<br>金额: %{y:,.0f}元<extra></extra>'
-        ))
+        for i, (name, col, yaxis, dash) in enumerate(traces_data):
+            fig_history.add_trace(go.Scatter(
+                x=history_df['调整序号'],
+                y=history_df[col],
+                mode='lines+markers',
+                name=name,
+                line=dict(color=trace_colors[i], width=3, dash=dash),
+                marker=dict(size=8, color=trace_colors[i]),
+                yaxis=yaxis,
+                hovertemplate=f'<b>{name}</b><br>调整: %{{x}}<br>数值: %{{y:,.0f}}元' if '工资' in name else f'<b>{name}</b><br>调整: %{{x}}<br>数值: %{{y:.1f}}%<extra></extra>'
+            ))
         
-        fig_history.add_trace(go.Scatter(
-            x=history_df['调整序号'],
-            y=history_df['收入转化率(%)'],
-            mode='lines+markers',
-            name='收入转化率',
-            line=dict(color='#9C27B0', width=3, dash='dashdot'),
-            marker=dict(size=8),
-            yaxis='y4',
-            hovertemplate='<b>收入转化率</b><br>调整: %{x}<br>转化率: %{y:.1f}%<extra></extra>'
-        ))
+        # 获取文本颜色
+        text_color = theme_colors.get('text', '#000000')
+        if text_color is None and chart_template == "plotly_dark":
+            text_color = "#FFFFFF"
         
         # 更新布局 - 优化格线显示
         fig_history.update_layout(
             title=dict(
                 text='薪资调整历史趋势分析',
-                font=dict(size=20, color='#2C3E50'),
+                font=dict(size=20, color=text_color),
                 x=0.5,
                 xanchor='center'
             ),
@@ -943,26 +1103,28 @@ with tab5:
                 tickmode='array',
                 tickvals=history_df['调整序号'],
                 ticktext=history_df['调整序号'],
-                gridcolor='rgba(0,0,0,0.05)',
+                gridcolor='rgba(128, 128, 128, 0.1)',
                 showgrid=True,
-                gridwidth=1
+                gridwidth=1,
+                tickfont=dict(color=text_color),
+                title_font=dict(color=text_color)
             ),
             yaxis=dict(
                 title="月度总工资 (元)",
-                title_font=dict(color='#4CAF50', size=12),
-                tickfont=dict(color='#4CAF50', size=10),
+                title_font=dict(color=trace_colors[0], size=12),
+                tickfont=dict(color=text_color, size=10),
                 tickmode='array',
                 tickvals=monthly_ticks,
                 ticktext=[f'{tick:,.0f}' for tick in monthly_ticks],
-                gridcolor='rgba(0,0,0,0.05)',
+                gridcolor='rgba(128, 128, 128, 0.1)',
                 showgrid=True,
                 gridwidth=1,
                 zeroline=False
             ),
             yaxis2=dict(
                 title="年度总工资 (元)",
-                title_font=dict(color='#2196F3', size=12),
-                tickfont=dict(color='#2196F3', size=10),
+                title_font=dict(color=trace_colors[1], size=12),
+                tickfont=dict(color=text_color, size=10),
                 anchor="x",
                 overlaying="y",
                 side="right",
@@ -970,15 +1132,15 @@ with tab5:
                 tickmode='array',
                 tickvals=annual_ticks,
                 ticktext=[f'{tick:,.0f}' for tick in annual_ticks],
-                gridcolor='rgba(0,0,0,0.03)',
+                gridcolor='rgba(128, 128, 128, 0.05)',
                 showgrid=True,
                 gridwidth=0.5,
                 zeroline=False
             ),
             yaxis3=dict(
                 title="税后月均工资 (元)",
-                title_font=dict(color='#FF9800', size=12),
-                tickfont=dict(color='#FF9800', size=10),
+                title_font=dict(color=trace_colors[2], size=12),
+                tickfont=dict(color=text_color, size=10),
                 anchor="free",
                 overlaying="y",
                 side="right",
@@ -986,15 +1148,15 @@ with tab5:
                 tickmode='array',
                 tickvals=after_tax_ticks,
                 ticktext=[f'{tick:,.0f}' for tick in after_tax_ticks],
-                gridcolor='rgba(0,0,0,0.02)',
+                gridcolor='rgba(128, 128, 128, 0.05)',
                 showgrid=True,
                 gridwidth=0.5,
                 zeroline=False
             ),
             yaxis4=dict(
                 title="收入转化率 (%)",
-                title_font=dict(color='#9C27B0', size=12),
-                tickfont=dict(color='#9C27B0', size=10),
+                title_font=dict(color=trace_colors[3], size=12),
+                tickfont=dict(color=text_color, size=10),
                 anchor="free",
                 overlaying="y",
                 side="right",
@@ -1002,13 +1164,13 @@ with tab5:
                 tickmode='array',
                 tickvals=conversion_ticks,
                 ticktext=[f'{tick:.1f}' for tick in conversion_ticks],
-                gridcolor='rgba(0,0,0,0.02)',
+                gridcolor='rgba(128, 128, 128, 0.05)',
                 showgrid=True,
                 gridwidth=0.5,
                 zeroline=False
             ),
             hovermode="x unified",
-            template=chart_theme,
+            template=chart_template,
             height=chart_height,
             legend=dict(
                 orientation="h",
@@ -1016,12 +1178,15 @@ with tab5:
                 y=1.02,
                 xanchor="right",
                 x=1,
-                bgcolor="rgba(255, 255, 255, 0.8)",
-                bordercolor="rgba(0,0,0,0.1)",
-                borderwidth=1
+                bgcolor=f"rgba({int(text_color[1:3], 16) if text_color.startswith('#') else 0}, "
+                       f"{int(text_color[3:5], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, "
+                       f"{int(text_color[5:7], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, 0.1)",
+                bordercolor="rgba(128, 128, 128, 0.3)",
+                borderwidth=1,
+                font=dict(color=text_color)
             ),
-            plot_bgcolor='white',
-            paper_bgcolor='white',
+            plot_bgcolor=theme_colors.get('background', 'white'),
+            paper_bgcolor=theme_colors.get('background', 'white'),
             margin=dict(t=80, b=80, l=80, r=100)
         )
         
@@ -1031,7 +1196,7 @@ with tab5:
                 fig_history.add_hline(
                     y=tick,
                     line_dash="solid",
-                    line_color="rgba(0,0,0,0.05)",
+                    line_color="rgba(128, 128, 128, 0.1)",
                     line_width=1,
                     opacity=0.3
                 )
@@ -1046,7 +1211,12 @@ with tab5:
             change_indicators = ['月度总工资变化率(%)', '年度总工资变化率(%)', 
                                '税前月均变化率(%)', '税后月均变化率(%)']
             
-            colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0']
+            colors = [
+                theme_colors['primary'],
+                theme_colors['secondary'],
+                theme_colors['tertiary'],
+                theme_colors['quaternary']
+            ]
             
             # 计算变化率数据的范围
             change_min = float('inf')
@@ -1081,6 +1251,11 @@ with tab5:
             tick_count_change = 7  # 使用7个刻度，包括0点
             change_ticks = np.linspace(overall_min, overall_max, tick_count_change)
             
+            # 获取文本颜色
+            text_color = theme_colors.get('text', '#000000')
+            if text_color is None and chart_template == "plotly_dark":
+                text_color = "#FFFFFF"
+            
             # 创建柱状图
             fig_change = go.Figure()
             
@@ -1103,6 +1278,7 @@ with tab5:
                         marker_color=colors[i],
                         text=[f"{y:+.1f}%" for y in y_values[positive_mask]],
                         textposition='outside',
+                        textfont=dict(color=text_color),
                         hovertemplate=f'<b>{indicator.replace("变化率(%)", "")}</b><br>调整: %{{x}}<br>变化率: %{{y:+.1f}}%<extra></extra>',
                         showlegend=False  # 不在图例中显示正负分开的条目
                     ))
@@ -1116,6 +1292,7 @@ with tab5:
                         marker_pattern_shape="/",  # 添加斜线图案区分负值
                         text=[f"{y:+.1f}%" for y in y_values[negative_mask]],
                         textposition='outside',
+                        textfont=dict(color=text_color),
                         hovertemplate=f'<b>{indicator.replace("变化率(%)", "")}</b><br>调整: %{{x}}<br>变化率: %{{y:+.1f}}%<extra></extra>',
                         showlegend=False  # 不在图例中显示正负分开的条目
                     ))
@@ -1128,11 +1305,12 @@ with tab5:
                 y=y_values_conversion,
                 mode='lines+markers',
                 name='收入转化率变化',
-                line=dict(color='#E91E63', width=3),
-                marker=dict(size=8),
+                line=dict(color=theme_colors['danger'], width=3),
+                marker=dict(size=8, color=theme_colors['danger']),
                 yaxis='y2',
                 text=[f"{y:+.2f}pp" for y in y_values_conversion],
                 textposition='top center',
+                textfont=dict(color=text_color),
                 hovertemplate='<b>收入转化率变化</b><br>调整: %{x}<br>变化: %{y:+.2f}pp<extra></extra>'
             ))
             
@@ -1140,7 +1318,7 @@ with tab5:
             fig_change.update_layout(
                 title=dict(
                     text='各指标变化率趋势',
-                    font=dict(size=18, color='#2C3E50'),
+                    font=dict(size=18, color=text_color),
                     x=0.5,
                     xanchor='center'
                 ),
@@ -1149,9 +1327,11 @@ with tab5:
                     tickmode='array',
                     tickvals=x_values,
                     ticktext=x_values,
-                    gridcolor='rgba(0,0,0,0.05)',
+                    gridcolor='rgba(128, 128, 128, 0.1)',
                     showgrid=True,
-                    gridwidth=1
+                    gridwidth=1,
+                    tickfont=dict(color=text_color),
+                    title_font=dict(color=text_color)
                 ),
                 yaxis=dict(
                     title="变化率 (%)",
@@ -1159,12 +1339,14 @@ with tab5:
                     tickvals=change_ticks,
                     ticktext=[f'{tick:+.1f}' for tick in change_ticks],
                     range=[overall_min, overall_max],
-                    gridcolor='rgba(0,0,0,0.05)',
+                    gridcolor='rgba(128, 128, 128, 0.1)',
                     showgrid=True,
                     gridwidth=1,
                     zeroline=True,
-                    zerolinecolor='rgba(0,0,0,0.2)',
-                    zerolinewidth=1
+                    zerolinecolor='rgba(128, 128, 128, 0.3)',
+                    zerolinewidth=1,
+                    tickfont=dict(color=text_color),
+                    title_font=dict(color=text_color)
                 ),
                 yaxis2=dict(
                     title="收入转化率变化 (百分点)",
@@ -1174,15 +1356,17 @@ with tab5:
                     tickvals=change_ticks,
                     ticktext=[f'{tick:+.2f}' for tick in change_ticks],
                     range=[overall_min, overall_max],
-                    gridcolor='rgba(0,0,0,0.03)',
+                    gridcolor='rgba(128, 128, 128, 0.05)',
                     showgrid=True,
                     gridwidth=0.5,
                     zeroline=True,
-                    zerolinecolor='rgba(0,0,0,0.2)',
-                    zerolinewidth=1
+                    zerolinecolor='rgba(128, 128, 128, 0.3)',
+                    zerolinewidth=1,
+                    tickfont=dict(color=text_color),
+                    title_font=dict(color=text_color)
                 ),
                 barmode='group',
-                template=chart_theme,
+                template=chart_template,
                 height=400,
                 legend=dict(
                     orientation="h",
@@ -1190,12 +1374,15 @@ with tab5:
                     y=1.02,
                     xanchor="right",
                     x=1,
-                    bgcolor="rgba(255, 255, 255, 0.8)",
-                    bordercolor="rgba(0,0,0,0.1)",
-                    borderwidth=1
+                    bgcolor=f"rgba({int(text_color[1:3], 16) if text_color.startswith('#') else 0}, "
+                           f"{int(text_color[3:5], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, "
+                           f"{int(text_color[5:7], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, 0.1)",
+                    bordercolor="rgba(128, 128, 128, 0.3)",
+                    borderwidth=1,
+                    font=dict(color=text_color)
                 ),
-                plot_bgcolor='white',
-                paper_bgcolor='white'
+                plot_bgcolor=theme_colors.get('background', 'white'),
+                paper_bgcolor=theme_colors.get('background', 'white')
             )
             
             # 添加水平网格线（均匀分布）
@@ -1203,7 +1390,7 @@ with tab5:
                 fig_change.add_hline(
                     y=tick,
                     line_dash="solid",
-                    line_color="rgba(0,0,0,0.05)",
+                    line_color="rgba(128, 128, 128, 0.1)",
                     line_width=1,
                     opacity=0.3
                 )
@@ -1212,7 +1399,7 @@ with tab5:
             fig_change.add_hline(
                 y=0,
                 line_dash="solid",
-                line_color="rgba(0,0,0,0.3)",
+                line_color="rgba(128, 128, 128, 0.5)",
                 line_width=1.5,
                 opacity=0.5
             )
@@ -1225,8 +1412,10 @@ with tab5:
                 yref="paper",
                 text="💡 柱状图: 各指标变化率 | 线图: 收入转化率变化",
                 showarrow=False,
-                font=dict(size=10, color='#7F8C8D'),
-                bgcolor="rgba(255, 255, 255, 0.7)",
+                font=dict(size=10, color=text_color),
+                bgcolor=f"rgba({int(text_color[1:3], 16) if text_color.startswith('#') else 0}, "
+                       f"{int(text_color[3:5], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, "
+                       f"{int(text_color[5:7], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, 0.1)",
                 bordercolor="#DDD",
                 borderwidth=1,
                 borderpad=4
@@ -1391,29 +1580,41 @@ if enable_comparison:
         current_result['月均到手(含年终奖)']
     ]
     
+    # 获取文本颜色
+    text_color = theme_colors.get('text', '#000000')
+    if text_color is None and chart_template == "plotly_dark":
+        text_color = "#FFFFFF"
+    
     fig_comparison.add_trace(go.Bar(
         name='原工作',
         x=categories,
         y=old_values,
-        marker_color='#FF9800',
+        marker_color=theme_colors['warning'],
         text=[f'{v:,.0f}' for v in old_values],
-        textposition='outside'
+        textposition='outside',
+        textfont=dict(color=text_color)
     ))
     
     fig_comparison.add_trace(go.Bar(
         name='现工作',
         x=categories,
         y=new_values,
-        marker_color='#4CAF50',
+        marker_color=theme_colors['primary'],
         text=[f'{v:,.0f}' for v in new_values],
-        textposition='outside'
+        textposition='outside',
+        textfont=dict(color=text_color)
     ))
     
     fig_comparison.update_layout(
         title='收入对比',
         barmode='group',
-        template=chart_theme,
-        height=400
+        template=chart_template,
+        height=400,
+        paper_bgcolor=theme_colors.get('background', 'white'),
+        font=dict(color=text_color),
+        title_font=dict(color=text_color),
+        xaxis=dict(tickfont=dict(color=text_color)),
+        yaxis=dict(tickfont=dict(color=text_color))
     )
     
     st.plotly_chart(fig_comparison, use_container_width=True)
@@ -1458,7 +1659,7 @@ with col1:
     if st.session_state.salary_history:
         if st.button("📊 导出历史记录数据"):
             history_export = {
-                '导出时间': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                '导出时间': datetime.now().strftime('%Y-%m-d %H:%M:%S'),
                 '历史记录数量': len(st.session_state.salary_history),
                 '薪资调整历史': st.session_state.salary_history
             }
@@ -1498,5 +1699,10 @@ st.caption("""
        - 点击"记录当前方案"保存当前参数和结果
        - 最多保存最近10次调整记录
        - 在"历史趋势分析"标签页查看趋势和变化率
-    8. 数据仅供参考，实际纳税以税务机关规定为准
+    8. 图表主题设置：
+       - 自动跟随系统：尝试跟随系统深色/浅色模式
+       - 深色模式：适合暗光环境使用
+       - 浅色模式：传统明亮风格
+       - 蓝色调/暖色调：特色配色方案
+    9. 数据仅供参考，实际纳税以税务机关规定为准
 """)
