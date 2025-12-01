@@ -266,15 +266,61 @@ def get_chart_theme(theme_name):
     
     return themes.get(theme_name, themes["自动跟随系统"])
 
-# 获取当前系统主题
-def get_system_theme():
-    """获取系统主题（简化的检测方法）"""
+def get_text_color(theme_config):
+    """安全地获取文本颜色"""
+    text_color = theme_config["colors"].get("text")
+    
+    if text_color is None:
+        # 根据模板决定文本颜色
+        if theme_config["template"] == "plotly_dark":
+            return "#FFFFFF"
+        else:
+            return "#000000"
+    
+    # 确保返回的是字符串
+    if isinstance(text_color, str) and text_color.startswith('#'):
+        return text_color
+    else:
+        return "#000000"  # 默认黑色
+
+def get_background_color(theme_config):
+    """安全地获取背景颜色"""
+    bg_color = theme_config["colors"].get("background")
+    
+    if bg_color is None:
+        # 根据模板决定背景颜色
+        if theme_config["template"] == "plotly_dark":
+            return "#1E1E1E"
+        else:
+            return "#FFFFFF"
+    
+    # 确保返回的是字符串
+    if isinstance(bg_color, str):
+        return bg_color
+    else:
+        return "#FFFFFF"  # 默认白色
+
+def rgba_from_hex(hex_color, alpha=0.1):
+    """将十六进制颜色转换为RGBA字符串"""
+    if not isinstance(hex_color, str) or not hex_color.startswith('#'):
+        return f"rgba(0, 0, 0, {alpha})"
+    
     try:
-        # 尝试检测系统主题（注意：Streamlit本身不直接支持，这里使用简化的方法）
-        # 在实际使用中，可能需要通过JavaScript检测
-        return "深色模式"  # 默认返回深色，用户可以在侧边栏手动调整
+        # 移除#号
+        hex_color = hex_color.lstrip('#')
+        
+        # 处理3位或6位十六进制
+        if len(hex_color) == 3:
+            hex_color = ''.join([c*2 for c in hex_color])
+        
+        # 转换为RGB
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        
+        return f"rgba({r}, {g}, {b}, {alpha})"
     except:
-        return "浅色模式"
+        return f"rgba(0, 0, 0, {alpha})"
 
 # ---------------------- 初始化session state ----------------------
 if 'salary_history' not in st.session_state:
@@ -455,9 +501,6 @@ with st.sidebar:
     # 图表外观设置 - 优化版
     st.subheader("🎨 图表外观设置")
     
-    # 检测当前系统主题
-    system_theme = get_system_theme()
-    
     # 主题选择
     chart_theme_option = st.selectbox(
         "图表主题",
@@ -467,9 +510,6 @@ with st.sidebar:
     
     # 更新当前主题
     st.session_state.current_theme = chart_theme_option
-    
-    # 获取主题配置
-    theme_config = get_chart_theme(chart_theme_option)
     
     chart_height = st.slider("图表高度", 300, 800, 500, 50)
     
@@ -499,6 +539,10 @@ with st.sidebar:
 theme_config = get_chart_theme(st.session_state.current_theme)
 chart_template = theme_config["template"]
 theme_colors = theme_config["colors"]
+
+# 安全地获取颜色
+text_color = get_text_color(theme_config)
+background_color = get_background_color(theme_config)
 
 # ---------------------- 主显示区域 ----------------------
 # 计算当前方案结果
@@ -595,7 +639,7 @@ with tab1:
         name='收入转化率',
         line=dict(color=theme_colors['primary'], width=4),
         fill='tozeroy',
-        fillcolor=f'rgba({int(theme_colors["primary"][1:3], 16)}, {int(theme_colors["primary"][3:5], 16)}, {int(theme_colors["primary"][5:7], 16)}, 0.2)',
+        fillcolor=rgba_from_hex(theme_colors['primary'], 0.2),
         hovertemplate='<b>收入转化率</b><br>月薪: %{x:,.0f}元<br>转化率: %{y:.1f}%<extra></extra>'
     ))
     
@@ -643,7 +687,7 @@ with tab1:
     fig_comprehensive.add_vline(
         x=current_monthly, 
         line_dash="solid", 
-        line_color=f"rgba({int(theme_colors['danger'][1:3], 16)}, {int(theme_colors['danger'][3:5], 16)}, {int(theme_colors['danger'][5:7], 16)}, 0.7)",
+        line_color=rgba_from_hex(theme_colors['danger'], 0.7),
         line_width=2,
         annotation_text=f"当前月薪: {current_monthly:,.0f}元",
         annotation_position="top right",
@@ -660,17 +704,8 @@ with tab1:
             line_width=1,
             annotation_text=f"{name}",
             annotation_position="right",
-            annotation_font=dict(size=10)
+            annotation_font=dict(size=10, color=text_color)
         )
-    
-    # 获取文本颜色
-    text_color = theme_colors.get('text', '#000000')
-    if text_color is None:
-        # 根据主题模板自动选择
-        if chart_template == "plotly_dark":
-            text_color = "#FFFFFF"
-        else:
-            text_color = "#000000"
     
     # 更新布局
     fig_comprehensive.update_layout(
@@ -735,15 +770,13 @@ with tab1:
             y=1.02,
             xanchor="right",
             x=1,
-            bgcolor=f"rgba({int(text_color[1:3], 16) if text_color.startswith('#') else 0}, "
-                   f"{int(text_color[3:5], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, "
-                   f"{int(text_color[5:7], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, 0.1)",
+            bgcolor=rgba_from_hex(text_color, 0.1),
             bordercolor="rgba(128, 128, 128, 0.3)",
             borderwidth=1,
             font=dict(color=text_color)
         ),
-        plot_bgcolor=theme_colors.get('background', 'white'),
-        paper_bgcolor=theme_colors.get('background', 'white'),
+        plot_bgcolor=background_color,
+        paper_bgcolor=background_color,
         margin=dict(t=80, b=80, l=80, r=100)
     )
     
@@ -756,9 +789,7 @@ with tab1:
         text="💡 收入转化率 = 税后收入 / 税前收入",
         showarrow=False,
         font=dict(size=12, color=text_color),
-        bgcolor=f"rgba({int(text_color[1:3], 16) if text_color.startswith('#') else 0}, "
-               f"{int(text_color[3:5], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, "
-               f"{int(text_color[5:7], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, 0.1)",
+        bgcolor=rgba_from_hex(text_color, 0.1),
         bordercolor="#DDD",
         borderwidth=1,
         borderpad=4
@@ -799,11 +830,6 @@ with tab2:
         color_discrete_map=dict(zip(income_components['项目'], income_components['颜色']))
     )
     
-    # 更新文本颜色
-    text_color = theme_colors.get('text', '#000000')
-    if text_color is None and chart_template == "plotly_dark":
-        text_color = "#FFFFFF"
-    
     fig_pie.update_traces(
         textposition='inside', 
         textinfo='percent+label',
@@ -814,7 +840,7 @@ with tab2:
     fig_pie.update_layout(
         template=chart_template,
         height=chart_height,
-        paper_bgcolor=theme_colors.get('background', 'white'),
+        paper_bgcolor=background_color,
         font=dict(color=text_color),
         title_font=dict(color=text_color)
     )
@@ -832,11 +858,6 @@ with tab3:
         title='边际税率变化曲线',
         labels={'边际税率': '边际税率', '月薪': '月度总工资 (元)'}
     )
-    
-    # 获取文本颜色
-    text_color = theme_colors.get('text', '#000000')
-    if text_color is None and chart_template == "plotly_dark":
-        text_color = "#FFFFFF"
     
     # 添加税率区间标注
     tax_thresholds = [36000/12, 144000/12, 300000/12, 420000/12, 660000/12, 960000/12]
@@ -878,7 +899,7 @@ with tab3:
             tickfont=dict(color=text_color),
             title_font=dict(color=text_color)
         ),
-        paper_bgcolor=theme_colors.get('background', 'white'),
+        paper_bgcolor=background_color,
         font=dict(color=text_color),
         title_font=dict(color=text_color)
     )
@@ -908,11 +929,6 @@ with tab4:
         '净收入': theme_colors['secondary']
     }
     
-    # 获取文本颜色
-    text_color = theme_colors.get('text', '#000000')
-    if text_color is None and chart_template == "plotly_dark":
-        text_color = "#FFFFFF"
-    
     fig_monthly = px.bar(
         monthly_breakdown,
         x='项目',
@@ -935,7 +951,7 @@ with tab4:
         xaxis_title="",
         yaxis_title="金额 (元)",
         showlegend=True,
-        paper_bgcolor=theme_colors.get('background', 'white'),
+        paper_bgcolor=background_color,
         font=dict(color=text_color),
         title_font=dict(color=text_color),
         xaxis=dict(tickfont=dict(color=text_color)),
@@ -1085,11 +1101,6 @@ with tab5:
                 hovertemplate=f'<b>{name}</b><br>调整: %{{x}}<br>数值: %{{y:,.0f}}元' if '工资' in name else f'<b>{name}</b><br>调整: %{{x}}<br>数值: %{{y:.1f}}%<extra></extra>'
             ))
         
-        # 获取文本颜色
-        text_color = theme_colors.get('text', '#000000')
-        if text_color is None and chart_template == "plotly_dark":
-            text_color = "#FFFFFF"
-        
         # 更新布局 - 优化格线显示
         fig_history.update_layout(
             title=dict(
@@ -1178,15 +1189,13 @@ with tab5:
                 y=1.02,
                 xanchor="right",
                 x=1,
-                bgcolor=f"rgba({int(text_color[1:3], 16) if text_color.startswith('#') else 0}, "
-                       f"{int(text_color[3:5], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, "
-                       f"{int(text_color[5:7], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, 0.1)",
+                bgcolor=rgba_from_hex(text_color, 0.1),
                 bordercolor="rgba(128, 128, 128, 0.3)",
                 borderwidth=1,
                 font=dict(color=text_color)
             ),
-            plot_bgcolor=theme_colors.get('background', 'white'),
-            paper_bgcolor=theme_colors.get('background', 'white'),
+            plot_bgcolor=background_color,
+            paper_bgcolor=background_color,
             margin=dict(t=80, b=80, l=80, r=100)
         )
         
@@ -1250,11 +1259,6 @@ with tab5:
             # 创建均匀分布的刻度
             tick_count_change = 7  # 使用7个刻度，包括0点
             change_ticks = np.linspace(overall_min, overall_max, tick_count_change)
-            
-            # 获取文本颜色
-            text_color = theme_colors.get('text', '#000000')
-            if text_color is None and chart_template == "plotly_dark":
-                text_color = "#FFFFFF"
             
             # 创建柱状图
             fig_change = go.Figure()
@@ -1374,15 +1378,13 @@ with tab5:
                     y=1.02,
                     xanchor="right",
                     x=1,
-                    bgcolor=f"rgba({int(text_color[1:3], 16) if text_color.startswith('#') else 0}, "
-                           f"{int(text_color[3:5], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, "
-                           f"{int(text_color[5:7], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, 0.1)",
+                    bgcolor=rgba_from_hex(text_color, 0.1),
                     bordercolor="rgba(128, 128, 128, 0.3)",
                     borderwidth=1,
                     font=dict(color=text_color)
                 ),
-                plot_bgcolor=theme_colors.get('background', 'white'),
-                paper_bgcolor=theme_colors.get('background', 'white')
+                plot_bgcolor=background_color,
+                paper_bgcolor=background_color
             )
             
             # 添加水平网格线（均匀分布）
@@ -1413,9 +1415,7 @@ with tab5:
                 text="💡 柱状图: 各指标变化率 | 线图: 收入转化率变化",
                 showarrow=False,
                 font=dict(size=10, color=text_color),
-                bgcolor=f"rgba({int(text_color[1:3], 16) if text_color.startswith('#') else 0}, "
-                       f"{int(text_color[3:5], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, "
-                       f"{int(text_color[5:7], 16) if text_color.startswith('#') and len(text_color) >= 7 else 0}, 0.1)",
+                bgcolor=rgba_from_hex(text_color, 0.1),
                 bordercolor="#DDD",
                 borderwidth=1,
                 borderpad=4
@@ -1580,11 +1580,6 @@ if enable_comparison:
         current_result['月均到手(含年终奖)']
     ]
     
-    # 获取文本颜色
-    text_color = theme_colors.get('text', '#000000')
-    if text_color is None and chart_template == "plotly_dark":
-        text_color = "#FFFFFF"
-    
     fig_comparison.add_trace(go.Bar(
         name='原工作',
         x=categories,
@@ -1610,7 +1605,7 @@ if enable_comparison:
         barmode='group',
         template=chart_template,
         height=400,
-        paper_bgcolor=theme_colors.get('background', 'white'),
+        paper_bgcolor=background_color,
         font=dict(color=text_color),
         title_font=dict(color=text_color),
         xaxis=dict(tickfont=dict(color=text_color)),
@@ -1659,7 +1654,7 @@ with col1:
     if st.session_state.salary_history:
         if st.button("📊 导出历史记录数据"):
             history_export = {
-                '导出时间': datetime.now().strftime('%Y-%m-d %H:%M:%S'),
+                '导出时间': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 '历史记录数量': len(st.session_state.salary_history),
                 '薪资调整历史': st.session_state.salary_history
             }
