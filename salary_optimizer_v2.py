@@ -70,14 +70,22 @@ def calculate_social_security(monthly_salary, ss_base, hf_base):
 
 def calculate_one_scenario(base_salary, performance_salary, bonus_base_months, 
                           performance_multiplier, ss_base, hf_base, 
-                          additional_deductions=0):
+                          additional_deductions=0, include_performance_in_bonus=True):
     """计算单一薪资方案的结果"""
     # 1. 计算月度和年度薪资
     monthly_salary = base_salary + performance_salary
     annual_salary = monthly_salary * 12
     
-    # 2. 计算年终奖 (基本月数 × 绩效系数 × 月度总工资)
-    bonus = (base_salary + performance_salary) * bonus_base_months * performance_multiplier
+    # 2. 计算年终奖基数（根据选择决定是否包含绩效工资）
+    if include_performance_in_bonus:
+        bonus_base = base_salary + performance_salary  # 包含绩效工资
+        bonus_calculation_method = "基本工资 + 绩效工资"
+    else:
+        bonus_base = base_salary  # 只包含基本工资
+        bonus_calculation_method = "仅基本工资"
+    
+    # 计算年终奖 (基本月数 × 绩效系数 × 年终奖基数)
+    bonus = bonus_base * bonus_base_months * performance_multiplier
     
     # 3. 计算社保公积金
     monthly_ss, annual_ss, ss_breakdown = calculate_social_security(monthly_salary, ss_base, hf_base)
@@ -120,6 +128,7 @@ def calculate_one_scenario(base_salary, performance_salary, bonus_base_months,
         '月度总工资': monthly_salary,
         '年终奖月数': bonus_base_months,
         '绩效系数': performance_multiplier,
+        '年终奖基数': bonus_base,
         '年终奖金额': bonus,
         '税前年收入': total_income,
         '社保公积金(年)': annual_ss,
@@ -131,12 +140,13 @@ def calculate_one_scenario(base_salary, performance_salary, bonus_base_months,
         '月均到手(不含年终奖)': monthly_without_bonus,
         '月均到手(含年终奖)': monthly_with_bonus,
         '年度社保公积金': annual_ss,
-        '年度个税': total_tax
+        '年度个税': total_tax,
+        '年终奖计算方式': bonus_calculation_method
     }
 
 def generate_comprehensive_data(base_salary, performance_salary, bonus_base_months, 
                                performance_multiplier, ss_base, hf_base, 
-                               additional_deductions=0):
+                               additional_deductions=0, include_performance_in_bonus=True):
     """生成综合对比数据"""
     salary_range = np.arange(5000, 50001, 1000)
     
@@ -157,7 +167,8 @@ def generate_comprehensive_data(base_salary, performance_salary, bonus_base_mont
         
         result = calculate_one_scenario(
             current_base, current_perf, bonus_base_months, 
-            performance_multiplier, ss_base, hf_base, additional_deductions
+            performance_multiplier, ss_base, hf_base, additional_deductions,
+            include_performance_in_bonus
         )
         
         data['月薪'].append(s)
@@ -212,6 +223,13 @@ with st.sidebar:
     
     # 年终奖设置
     st.subheader("年终奖设置")
+    
+    # 新增：年终奖计算方式选择
+    include_performance_in_bonus = st.checkbox(
+        "年终奖包含绩效工资",
+        value=True,
+        help="勾选：年终奖基数 = 基本工资 + 绩效工资\n不勾选：年终奖基数 = 基本工资"
+    )
     
     col1, col2 = st.columns(2)
     with col1:
@@ -283,6 +301,7 @@ with st.sidebar:
     enable_comparison = st.checkbox("启用对比分析", value=False)
     
     if enable_comparison:
+        st.markdown("**原工作参数**")
         col1, col2 = st.columns(2)
         with col1:
             old_base_salary = st.number_input("原基本工资 (元)", min_value=0, max_value=100000, value=10000, step=500)
@@ -290,18 +309,27 @@ with st.sidebar:
         with col2:
             old_performance_salary = st.number_input("原绩效工资 (元)", min_value=0, max_value=100000, value=5000, step=500)
             old_performance_multiplier = st.slider("原绩效系数", 0.0, 5.0, 1.0, 0.1)
+        
+        # 原工作年终奖计算方式（默认也使用当前设置）
+        old_include_performance_in_bonus = st.checkbox(
+            "原工作年终奖包含绩效工资",
+            value=include_performance_in_bonus,
+            help="原工作的年终奖计算方式"
+        )
 
 # ---------------------- 主显示区域 ----------------------
 # 计算当前方案结果
 current_result = calculate_one_scenario(
     base_salary, performance_salary, bonus_base_months,
-    performance_multiplier, ss_base, hf_base, additional_deductions
+    performance_multiplier, ss_base, hf_base, additional_deductions,
+    include_performance_in_bonus
 )
 
 # 生成综合数据
 comprehensive_data = generate_comprehensive_data(
     base_salary, performance_salary, bonus_base_months,
-    performance_multiplier, ss_base, hf_base, additional_deductions
+    performance_multiplier, ss_base, hf_base, additional_deductions,
+    include_performance_in_bonus
 )
 
 # 关键指标显示
@@ -315,10 +343,12 @@ with col1:
         f"基本{current_result['基本工资']:,.0f}+绩效{current_result['绩效工资']:,.0f}"
     )
 with col2:
+    # 显示年终奖计算方式
+    bonus_base_desc = f"基数: {current_result['年终奖基数']:,.0f}元"
     st.metric(
         "年终奖", 
         f"{current_result['年终奖金额']:,.0f}元",
-        f"{current_result['年终奖月数']}月×{current_result['绩效系数']}倍"
+        f"{current_result['年终奖月数']}月×{current_result['绩效系数']}倍 ({current_result['年终奖计算方式']})"
     )
 with col3:
     st.metric(
@@ -349,6 +379,9 @@ with col2:
     💰 **{current_result['月均到手(含年终奖)']:,.0f}元**  
     _(包含月度工资+年终奖平摊)_
     """)
+
+# 年终奖计算方式说明
+st.info(f"📝 **年终奖计算方式**: {current_result['年终奖计算方式']} | 年终奖基数: {current_result['年终奖基数']:,.0f}元")
 
 # ---------------------- 图表区域 ----------------------
 st.header("📈 可视化分析")
@@ -594,15 +627,24 @@ with col2:
     # 年终奖计算明细
     st.subheader("年终奖计算明细")
     
+    # 根据计算方式显示不同的基数
+    if include_performance_in_bonus:
+        bonus_base = current_result['基本工资'] + current_result['绩效工资']
+        bonus_base_desc = f"基本工资({current_result['基本工资']:,.0f}) + 绩效工资({current_result['绩效工资']:,.0f})"
+    else:
+        bonus_base = current_result['基本工资']
+        bonus_base_desc = f"基本工资({current_result['基本工资']:,.0f})"
+    
     bonus_details = pd.DataFrame({
-        '项目': ['基本月数', '绩效系数', '月度总工资', '年终奖基数', '年终奖个税', '年终奖税后'],
+        '项目': ['计算方式', '基本月数', '绩效系数', '年终奖基数', '年终奖税前', '年终奖个税', '年终奖税后'],
         '数值': [
+            current_result['年终奖计算方式'],
             f"{current_result['年终奖月数']}个月",
             f"{current_result['绩效系数']}倍",
-            f"{current_result['月度总工资']:,.0f}元",
-            f"{current_result['月度总工资'] * current_result['年终奖月数']:,.0f}元",
-            f"{calculate_tax_bonus(current_result['月度总工资'] * current_result['年终奖月数']):,.0f}元",
-            f"{current_result['年终奖金额'] - calculate_tax_bonus(current_result['月度总工资'] * current_result['年终奖月数']):,.0f}元"
+            f"{bonus_base:,.0f}元 ({bonus_base_desc})",
+            f"{current_result['年终奖金额']:,.0f}元",
+            f"{calculate_tax_bonus(current_result['年终奖金额']):,.0f}元",
+            f"{current_result['年终奖金额'] - calculate_tax_bonus(current_result['年终奖金额']):,.0f}元"
         ]
     })
     
@@ -615,17 +657,19 @@ if enable_comparison:
     # 计算旧工作结果
     old_result = calculate_one_scenario(
         old_base_salary, old_performance_salary, old_bonus_months,
-        old_performance_multiplier, ss_base, hf_base, additional_deductions
+        old_performance_multiplier, ss_base, hf_base, additional_deductions,
+        old_include_performance_in_bonus
     )
     
     # 创建对比表格
     comparison_data = {
-        '项目': ['月度总工资', '基本工资', '绩效工资', '年终奖金额', '税前年收入', 
+        '项目': ['月度总工资', '基本工资', '绩效工资', '年终奖计算方式', '年终奖金额', '税前年收入', 
                 '税后年收入', '收入转化率', '边际税率', '月均到手(含年终奖)'],
         '原工作': [
             f"{old_result['月度总工资']:,.0f}元",
             f"{old_result['基本工资']:,.0f}元",
             f"{old_result['绩效工资']:,.0f}元",
+            f"{old_result['年终奖计算方式']}",
             f"{old_result['年终奖金额']:,.0f}元",
             f"{old_result['税前年收入']:,.0f}元",
             f"{old_result['税后年收入']:,.0f}元",
@@ -637,6 +681,7 @@ if enable_comparison:
             f"{current_result['月度总工资']:,.0f}元",
             f"{current_result['基本工资']:,.0f}元",
             f"{current_result['绩效工资']:,.0f}元",
+            f"{current_result['年终奖计算方式']}",
             f"{current_result['年终奖金额']:,.0f}元",
             f"{current_result['税前年收入']:,.0f}元",
             f"{current_result['税后年收入']:,.0f}元",
@@ -648,6 +693,7 @@ if enable_comparison:
             f"{current_result['月度总工资'] - old_result['月度总工资']:+,.0f}元",
             f"{current_result['基本工资'] - old_result['基本工资']:+,.0f}元",
             f"{current_result['绩效工资'] - old_result['绩效工资']:+,.0f}元",
+            "-",
             f"{current_result['年终奖金额'] - old_result['年终奖金额']:+,.0f}元",
             f"{current_result['税前年收入'] - old_result['税前年收入']:+,.0f}元",
             f"{current_result['税后年收入'] - old_result['税后年收入']:+,.0f}元",
@@ -720,7 +766,8 @@ with col1:
                 '社保基数': ss_base,
                 '公积金基数': hf_base,
                 '专项附加扣除': additional_deductions,
-                '城市预设': city_preset
+                '城市预设': city_preset,
+                '年终奖包含绩效工资': include_performance_in_bonus
             },
             '计算结果': {
                 k: v for k, v in current_result.items() 
@@ -754,9 +801,10 @@ st.caption("""
     💡 **使用说明**：
     1. 在左侧边栏调整所有参数，图表会实时更新
     2. 工资结构已细分为基本工资和绩效工资
-    3. 年终奖计算 = (基本工资+绩效工资) × 基本月数 × 绩效系数
-    4. 月均收入分别显示包含和不包含年终奖的情况
-    5. 数据仅供参考，实际纳税以税务机关规定为准
+    3. 年终奖计算方式可通过复选框选择：
+       - 勾选：年终奖基数 = 基本工资 + 绩效工资
+       - 不勾选：年终奖基数 = 基本工资
+    4. 年终奖金额 = 年终奖基数 × 基本月数 × 绩效系数
+    5. 月均收入分别显示包含和不包含年终奖的情况
+    6. 数据仅供参考，实际纳税以税务机关规定为准
 """)
-
-
