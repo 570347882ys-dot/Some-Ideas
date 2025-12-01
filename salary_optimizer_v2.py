@@ -148,7 +148,8 @@ def generate_comprehensive_data(base_salary, performance_salary, bonus_base_mont
                                performance_multiplier, ss_base, hf_base, 
                                additional_deductions=0, include_performance_in_bonus=True):
     """生成综合对比数据"""
-    salary_range = np.arange(5000, 50001, 1000)
+    # 修改：将月薪范围从5000-50001调整为5000-100000，步长调整为2000
+    salary_range = np.arange(5000, 100001, 2000)
     
     data = {
         '月薪': [],
@@ -391,7 +392,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["综合曲线图", "收入构成", "边际税�
 
 with tab1:
     # 综合曲线图 - 优化版本
-    st.subheader("薪资分析曲线图")
+    st.subheader("薪资分析曲线图 (月薪范围: 5,000-100,000元)")
     
     # 获取当前月薪对应的数据点索引
     current_monthly = current_result['月度总工资']
@@ -485,7 +486,7 @@ with tab1:
     # 更新布局
     fig_comprehensive.update_layout(
         title=dict(
-            text='薪资综合分析曲线 - 以收入转化率为核心指标',
+            text='薪资综合分析曲线 - 以收入转化率为核心指标 (月薪范围: 5,000-100,000元)',
             font=dict(size=20, color='#2C3E50'),
             x=0.5,
             xanchor='center'
@@ -497,7 +498,8 @@ with tab1:
             ),
             gridcolor='rgba(0,0,0,0.05)',
             showgrid=True,
-            tickformat=',.0f'
+            tickformat=',.0f',
+            range=[5000, 100000]  # 设置x轴显示范围
         ),
         yaxis=dict(
             title=dict(
@@ -506,7 +508,7 @@ with tab1:
             ),
             gridcolor='rgba(0,0,0,0.05)',
             showgrid=True,
-            range=[60, 100]  # 固定y轴范围，更好显示收入转化率
+            range=[50, 100]  # 调整y轴范围以更好地显示数据
         ),
         yaxis2=dict(
             title=dict(
@@ -614,7 +616,7 @@ with tab2:
 
 with tab3:
     # 边际税率分析
-    st.subheader("边际税率阶梯分析")
+    st.subheader("边际税率阶梯分析 (月薪范围: 5,000-100,000元)")
     
     fig_marginal = px.area(
         comprehensive_data, 
@@ -650,6 +652,10 @@ with tab3:
     fig_marginal.update_layout(
         template=chart_theme,
         height=chart_height,
+        xaxis=dict(
+            range=[5000, 100000],  # 设置x轴显示范围
+            tickformat=',.0f'
+        ),
         yaxis=dict(
             tickformat=".0%",
             title="边际税率"
@@ -906,5 +912,6 @@ st.caption("""
        - 不勾选：年终奖基数 = 基本工资
     4. 年终奖金额 = 年终奖基数 × 基本月数 × 绩效系数
     5. 月均收入分别显示包含和不包含年终奖的情况
-    6. 数据仅供参考，实际纳税以税务机关规定为准
+    6. 图表显示范围：月薪5,000-100,000元（个税起征点至10万月薪）
+    7. 数据仅供参考，实际纳税以税务机关规定为准
 """)
