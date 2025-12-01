@@ -6,6 +6,7 @@ import plotly.express as px
 from datetime import datetime
 import json
 import io
+from collections import deque
 
 # 设置页面配置
 st.set_page_config(
@@ -141,14 +142,14 @@ def calculate_one_scenario(base_salary, performance_salary, bonus_base_months,
         '月均到手(含年终奖)': monthly_with_bonus,
         '年度社保公积金': annual_ss,
         '年度个税': total_tax,
-        '年终奖计算方式': bonus_calculation_method
+        '年终奖计算方式': bonus_calculation_method,
+        '年终奖包含绩效工资': include_performance_in_bonus
     }
 
 def generate_comprehensive_data(base_salary, performance_salary, bonus_base_months, 
                                performance_multiplier, ss_base, hf_base, 
                                additional_deductions=0, include_performance_in_bonus=True):
     """生成综合对比数据"""
-    # 修改：将月薪范围从5000-50001调整为5000-100000，步长调整为500
     salary_range = np.arange(5000, 100001, 500)
     
     data = {
@@ -181,6 +182,35 @@ def generate_comprehensive_data(base_salary, performance_salary, bonus_base_mont
         data['税前月收入'].append(s)
     
     return pd.DataFrame(data)
+
+# ---------------------- 初始化session state ----------------------
+if 'salary_history' not in st.session_state:
+    st.session_state.salary_history = []
+if 'history_count' not in st.session_state:
+    st.session_state.history_count = 0
+
+def add_to_history(current_result, params):
+    """添加当前方案到历史记录"""
+    history_item = {
+        'id': st.session_state.history_count + 1,
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'params': params.copy(),
+        'results': current_result.copy()
+    }
+    
+    # 添加到历史记录，最多保留10条
+    st.session_state.salary_history.append(history_item)
+    if len(st.session_state.salary_history) > 10:
+        st.session_state.salary_history.pop(0)
+    
+    st.session_state.history_count += 1
+    st.success(f"✅ 已记录第 {history_item['id']} 次调整方案")
+
+def calculate_change_rate(current_value, previous_value):
+    """计算变化率"""
+    if previous_value == 0:
+        return 0
+    return ((current_value - previous_value) / previous_value) * 100
 
 # ---------------------- 页面标题和说明 ----------------------
 st.title("💰 薪资结构优化分析系统 v2.0")
@@ -285,6 +315,42 @@ with st.sidebar:
         help="如子女教育、住房贷款利息、赡养老人等"
     )
     
+    # 薪资调整历史记录功能
+    st.subheader("📝 薪资调整历史")
+    
+    # 记录当前方案按钮
+    if st.button("💾 记录当前方案", use_container_width=True):
+        # 收集当前参数
+        current_params = {
+            'base_salary': base_salary,
+            'performance_salary': performance_salary,
+            'bonus_base_months': bonus_base_months,
+            'performance_multiplier': performance_multiplier,
+            'ss_base': ss_base,
+            'hf_base': hf_base,
+            'additional_deductions': additional_deductions,
+            'include_performance_in_bonus': include_performance_in_bonus,
+            'city_preset': city_preset
+        }
+        
+        # 计算当前方案结果
+        current_result = calculate_one_scenario(
+            base_salary, performance_salary, bonus_base_months,
+            performance_multiplier, ss_base, hf_base, additional_deductions,
+            include_performance_in_bonus
+        )
+        
+        # 添加到历史记录
+        add_to_history(current_result, current_params)
+    
+    # 显示历史记录信息
+    if st.session_state.salary_history:
+        st.info(f"📚 已记录 {len(st.session_state.salary_history)} 次调整方案")
+        if st.button("🗑️ 清空历史记录", use_container_width=True):
+            st.session_state.salary_history = []
+            st.session_state.history_count = 0
+            st.rerun()
+    
     # 图表外观设置
     st.subheader("📊 图表外观设置")
     
@@ -387,8 +453,8 @@ st.info(f"📝 **年终奖计算方式**: {current_result['年终奖计算方式
 # ---------------------- 图表区域 ----------------------
 st.header("📈 可视化分析")
 
-# 创建标签页
-tab1, tab2, tab3, tab4 = st.tabs(["综合曲线图", "收入构成", "边际税率分析", "工资结构分解"])
+# 创建标签页 - 新增历史趋势分析标签
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["综合曲线图", "收入构成", "边际税率分析", "工资结构分解", "历史趋势分析"])
 
 with tab1:
     # 综合曲线图 - 优化版本
@@ -706,6 +772,320 @@ with tab4:
     
     st.plotly_chart(fig_monthly, use_container_width=True)
 
+with tab5:
+    # 新增：薪资调整历史趋势分析
+    st.subheader("📈 薪资调整历史趋势分析")
+    
+    if not st.session_state.salary_history:
+        st.info("📝 尚未记录任何薪资调整方案。请在左侧边栏点击'记录当前方案'按钮开始记录。")
+    else:
+        # 显示历史记录概览
+        st.success(f"📊 已记录 {len(st.session_state.salary_history)} 次薪资调整方案")
+        
+        # 准备历史数据
+        history_df = pd.DataFrame([
+            {
+                '调整序号': f"第{item['id']}次",
+                '记录时间': item['timestamp'],
+                '月度总工资(元)': item['results']['月度总工资'],
+                '年度总工资(元)': item['results']['税前年收入'],
+                '税前月均工资(元)': item['results']['月度总工资'],
+                '税后月均工资(元)': item['results']['月均到手(含年终奖)'],
+                '收入转化率(%)': item['results']['收入转化率'] * 100,
+                '年终奖计算方式': item['results']['年终奖计算方式'],
+                '年终奖包含绩效工资': item['results']['年终奖包含绩效工资']
+            }
+            for item in st.session_state.salary_history
+        ])
+        
+        # 计算变化率
+        if len(history_df) > 1:
+            change_rates = []
+            for i in range(len(history_df)):
+                if i == 0:
+                    change_rates.append({
+                        '调整序号': f"第{i+1}次",
+                        '月度总工资变化率(%)': 0,
+                        '年度总工资变化率(%)': 0,
+                        '税前月均变化率(%)': 0,
+                        '税后月均变化率(%)': 0,
+                        '收入转化率变化(百分点)': 0
+                    })
+                else:
+                    prev_row = history_df.iloc[i-1]
+                    curr_row = history_df.iloc[i]
+                    
+                    change_rates.append({
+                        '调整序号': f"第{i+1}次",
+                        '月度总工资变化率(%)': calculate_change_rate(curr_row['月度总工资(元)'], prev_row['月度总工资(元)']),
+                        '年度总工资变化率(%)': calculate_change_rate(curr_row['年度总工资(元)'], prev_row['年度总工资(元)']),
+                        '税前月均变化率(%)': calculate_change_rate(curr_row['税前月均工资(元)'], prev_row['税前月均工资(元)']),
+                        '税后月均变化率(%)': calculate_change_rate(curr_row['税后月均工资(元)'], prev_row['税后月均工资(元)']),
+                        '收入转化率变化(百分点)': curr_row['收入转化率(%)'] - prev_row['收入转化率(%)']
+                    })
+            
+            change_df = pd.DataFrame(change_rates)
+        
+        # 创建多图表显示
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("📋 历史记录数据表")
+            display_df = history_df.copy()
+            display_df = display_df[['调整序号', '记录时间', '月度总工资(元)', '年度总工资(元)', 
+                                    '税前月均工资(元)', '税后月均工资(元)', '收入转化率(%)', '年终奖计算方式']]
+            
+            # 格式化显示
+            formatted_df = display_df.copy()
+            for col in ['月度总工资(元)', '年度总工资(元)', '税前月均工资(元)', '税后月均工资(元)']:
+                formatted_df[col] = formatted_df[col].apply(lambda x: f"{x:,.0f}")
+            formatted_df['收入转化率(%)'] = formatted_df['收入转化率(%)'].apply(lambda x: f"{x:.1f}%")
+            
+            st.dataframe(formatted_df, use_container_width=True, hide_index=True)
+        
+        with col2:
+            if len(history_df) > 1:
+                st.subheader("📊 变化率分析")
+                # 格式化变化率数据
+                change_display_df = change_df.copy()
+                for col in ['月度总工资变化率(%)', '年度总工资变化率(%)', 
+                          '税前月均变化率(%)', '税后月均变化率(%)']:
+                    change_display_df[col] = change_display_df[col].apply(
+                        lambda x: f"{x:+.1f}%" if x != 0 else "0.0%"
+                    )
+                change_display_df['收入转化率变化(百分点)'] = change_display_df['收入转化率变化(百分点)'].apply(
+                    lambda x: f"{x:+.2f}pp" if x != 0 else "0.00pp"
+                )
+                
+                st.dataframe(change_display_df, use_container_width=True, hide_index=True)
+            else:
+                st.info("📈 记录至少2次调整方案后，将显示变化率分析")
+        
+        # 绘制历史趋势图
+        st.subheader("📈 薪资调整历史趋势图")
+        
+        fig_history = go.Figure()
+        
+        # 添加多条曲线
+        fig_history.add_trace(go.Scatter(
+            x=history_df['调整序号'],
+            y=history_df['月度总工资(元)'],
+            mode='lines+markers',
+            name='月度总工资',
+            line=dict(color='#4CAF50', width=3),
+            marker=dict(size=8),
+            yaxis='y'
+        ))
+        
+        fig_history.add_trace(go.Scatter(
+            x=history_df['调整序号'],
+            y=history_df['年度总工资(元)'],
+            mode='lines+markers',
+            name='年度总工资',
+            line=dict(color='#2196F3', width=3, dash='dash'),
+            marker=dict(size=8),
+            yaxis='y2'
+        ))
+        
+        fig_history.add_trace(go.Scatter(
+            x=history_df['调整序号'],
+            y=history_df['税后月均工资(元)'],
+            mode='lines+markers',
+            name='税后月均工资',
+            line=dict(color='#FF9800', width=3, dash='dot'),
+            marker=dict(size=8),
+            yaxis='y3'
+        ))
+        
+        fig_history.add_trace(go.Scatter(
+            x=history_df['调整序号'],
+            y=history_df['收入转化率(%)'],
+            mode='lines+markers',
+            name='收入转化率',
+            line=dict(color='#9C27B0', width=3, dash='dashdot'),
+            marker=dict(size=8),
+            yaxis='y4'
+        ))
+        
+        # 更新布局
+        fig_history.update_layout(
+            title=dict(
+                text='薪资调整历史趋势分析',
+                font=dict(size=20, color='#2C3E50'),
+                x=0.5,
+                xanchor='center'
+            ),
+            xaxis=dict(
+                title="调整序号",
+                tickmode='array',
+                tickvals=history_df['调整序号'],
+                ticktext=history_df['调整序号']
+            ),
+            yaxis=dict(
+                title="月度总工资 (元)",
+                title_font=dict(color='#4CAF50'),
+                tickfont=dict(color='#4CAF50'),
+                tickformat=',.0f'
+            ),
+            yaxis2=dict(
+                title="年度总工资 (元)",
+                title_font=dict(color='#2196F3'),
+                tickfont=dict(color='#2196F3'),
+                anchor="x",
+                overlaying="y",
+                side="right",
+                position=0.15,
+                tickformat=',.0f'
+            ),
+            yaxis3=dict(
+                title="税后月均工资 (元)",
+                title_font=dict(color='#FF9800'),
+                tickfont=dict(color='#FF9800'),
+                anchor="free",
+                overlaying="y",
+                side="right",
+                position=0.35,
+                tickformat=',.0f'
+            ),
+            yaxis4=dict(
+                title="收入转化率 (%)",
+                title_font=dict(color='#9C27B0'),
+                tickfont=dict(color='#9C27B0'),
+                anchor="free",
+                overlaying="y",
+                side="right",
+                position=0.55,
+                tickformat='.1f'
+            ),
+            hovermode="x unified",
+            template=chart_theme,
+            height=chart_height,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
+        )
+        
+        st.plotly_chart(fig_history, use_container_width=True)
+        
+        # 绘制变化率图表
+        if len(history_df) > 1:
+            st.subheader("📈 变化率趋势图")
+            
+            fig_change = go.Figure()
+            
+            # 只从第二次开始有变化率
+            change_indicators = ['月度总工资变化率(%)', '年度总工资变化率(%)', 
+                               '税前月均变化率(%)', '税后月均变化率(%)']
+            
+            colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0']
+            
+            for i, indicator in enumerate(change_indicators):
+                # 跳过第一次（变化率为0）
+                x_values = change_df['调整序号'].iloc[1:]
+                y_values = change_df[indicator].iloc[1:]
+                
+                fig_change.add_trace(go.Bar(
+                    x=x_values,
+                    y=y_values,
+                    name=indicator.replace('变化率(%)', ''),
+                    marker_color=colors[i],
+                    text=[f"{y:+.1f}%" for y in y_values],
+                    textposition='outside'
+                ))
+            
+            # 收入转化率变化（使用线图）
+            x_values = change_df['调整序号'].iloc[1:]
+            y_values = change_df['收入转化率变化(百分点)'].iloc[1:]
+            
+            fig_change.add_trace(go.Scatter(
+                x=x_values,
+                y=y_values,
+                mode='lines+markers',
+                name='收入转化率变化',
+                line=dict(color='#E91E63', width=3),
+                marker=dict(size=8),
+                yaxis='y2',
+                text=[f"{y:+.2f}pp" for y in y_values],
+                textposition='top center'
+            ))
+            
+            fig_change.update_layout(
+                title=dict(
+                    text='各指标变化率趋势',
+                    font=dict(size=18, color='#2C3E50'),
+                    x=0.5,
+                    xanchor='center'
+                ),
+                xaxis=dict(
+                    title="调整序号",
+                    tickmode='array',
+                    tickvals=x_values,
+                    ticktext=x_values
+                ),
+                yaxis=dict(
+                    title="变化率 (%)",
+                    tickformat='+.1f'
+                ),
+                yaxis2=dict(
+                    title="收入转化率变化 (百分点)",
+                    overlaying="y",
+                    side="right",
+                    tickformat='+.2f'
+                ),
+                barmode='group',
+                template=chart_theme,
+                height=400,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                )
+            )
+            
+            st.plotly_chart(fig_change, use_container_width=True)
+        
+        # 显示最佳方案
+        if len(history_df) > 1:
+            st.subheader("🏆 最佳方案分析")
+            
+            # 找出税后月均工资最高的方案
+            best_monthly_idx = history_df['税后月均工资(元)'].idxmax()
+            best_monthly = history_df.iloc[best_monthly_idx]
+            
+            # 找出收入转化率最高的方案
+            best_conversion_idx = history_df['收入转化率(%)'].idxmax()
+            best_conversion = history_df.iloc[best_conversion_idx]
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.success(f"""
+                **最佳税后收入方案**：
+                - 🥇 **第{best_monthly_idx+1}次调整**
+                - 💰 **税后月均工资**: {best_monthly['税后月均工资(元)']:,.0f}元
+                - 📊 **月度总工资**: {best_monthly['月度总工资(元)']:,.0f}元
+                - 🏦 **年度总工资**: {best_monthly['年度总工资(元)']:,.0f}元
+                - 📈 **收入转化率**: {best_monthly['收入转化率(%)']:.1f}%
+                - ⏰ **记录时间**: {best_monthly['记录时间']}
+                """)
+            
+            with col2:
+                st.info(f"""
+                **最佳转化率方案**：
+                - 🥈 **第{best_conversion_idx+1}次调整**
+                - 📈 **收入转化率**: {best_conversion['收入转化率(%)']:.1f}%
+                - 💰 **税后月均工资**: {best_conversion['税后月均工资(元)']:,.0f}元
+                - 📊 **月度总工资**: {best_conversion['月度总工资(元)']:,.0f}元
+                - 🏦 **年度总工资**: {best_conversion['年度总工资(元)']:,.0f}元
+                - ⏰ **记录时间**: {best_conversion['记录时间']}
+                """)
+
 # ---------------------- 详细数据表格 ----------------------
 st.header("📋 详细数据表格")
 
@@ -889,10 +1269,27 @@ with col1:
             file_name=f"薪资分析_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
             mime="application/json"
         )
+    
+    # 导出历史记录数据
+    if st.session_state.salary_history:
+        if st.button("📊 导出历史记录数据"):
+            history_export = {
+                '导出时间': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                '历史记录数量': len(st.session_state.salary_history),
+                '薪资调整历史': st.session_state.salary_history
+            }
+            
+            history_json = json.dumps(history_export, ensure_ascii=False, indent=2)
+            st.download_button(
+                label="下载历史记录JSON",
+                data=history_json,
+                file_name=f"薪资调整历史_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json"
+            )
 
 with col2:
     # 导出图表数据
-    if st.button("📊 导出图表数据"):
+    if st.button("📈 导出图表数据"):
         csv_data = comprehensive_data.to_csv(index=False)
         st.download_button(
             label="下载CSV文件",
@@ -913,6 +1310,9 @@ st.caption("""
     4. 年终奖金额 = 年终奖基数 × 基本月数 × 绩效系数
     5. 月均收入分别显示包含和不包含年终奖的情况
     6. 图表显示范围：月薪5,000-100,000元（个税起征点至10万月薪）
-    7. 数据仅供参考，实际纳税以税务机关规定为准
+    7. 薪资调整历史功能：
+       - 点击"记录当前方案"保存当前参数和结果
+       - 最多保存最近10次调整记录
+       - 在"历史趋势分析"标签页查看趋势和变化率
+    8. 数据仅供参考，实际纳税以税务机关规定为准
 """)
-
