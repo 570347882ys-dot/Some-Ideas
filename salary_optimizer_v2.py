@@ -408,12 +408,16 @@ with tab1:
         xaxis_title="月度总工资 (元)",
         yaxis=dict(
             title="税后年收入 (元)",
-            title=dict(color='#2E86AB'),
+            title=dict(
+            font=dict(color='#2E86AB')
+            ),
             tickfont=dict(color='#2E86AB')
         ),
         yaxis2=dict(
             title="收入转化率 (%)",
-            titlefont=dict(color='#A23B72'),
+            title=dict(
+              font=dict(color='#A23B72')
+            ),
             tickfont=dict(color='#A23B72'),
             anchor="x",
             overlaying="y",
@@ -421,7 +425,9 @@ with tab1:
         ),
         yaxis3=dict(
             title="边际税率 (%)",
-            titlefont=dict(color='#F18F01'),
+            title=dict(
+                font=dict(color='#F18F01')
+            ),
             tickfont=dict(color='#F18F01'),
             anchor="free",
             overlaying="y",
@@ -758,3 +764,4 @@ st.caption("""
     4. 月均收入分别显示包含和不包含年终奖的情况
     5. 数据仅供参考，实际纳税以税务机关规定为准
 """)
+
