@@ -403,80 +403,42 @@ with tab1:
     )
     
     # 更新布局
-fig_comprehensive.update_layout(
-    title="薪资综合分析曲线",
-    xaxis_title="月度总工资 (元)",
-    yaxis=dict(
-        # 修复：使用正确的结构设置Y轴标题字体
-        # 如果需要设置Y轴标题文本，使用 title=dict(...)
-        # 如果只需要设置字体，直接使用 tickfont
-        # 以下是两种可能的情况：
-        
-        # 情况1：如果你需要设置Y轴标题及其字体
-        title=dict(
-            text="Y轴标题",  # 替换为你的Y轴标题，例如："指标值" 或 "综合评分"
-            font=dict(
-                size=12,
-                family="Arial",
-                color="black"
-            )
+    fig_comprehensive.update_layout(
+        title="薪资综合分析曲线",
+        xaxis_title="月度总工资 (元)",
+        yaxis=dict(
+            title="税后年收入 (元)",
+            title=dict(color='#2E86AB'),
+            tickfont=dict(color='#2E86AB')
         ),
-        
-        # 情况2：如果你需要设置刻度标签字体
-        tickfont=dict(
-            size=10,
-            family="Arial",
-            color="gray"
+        yaxis2=dict(
+            title="收入转化率 (%)",
+            titlefont=dict(color='#A23B72'),
+            tickfont=dict(color='#A23B72'),
+            anchor="x",
+            overlaying="y",
+            side="right"
         ),
-        
-        # 其他可能的Y轴配置（根据你的实际代码添加）
-        # autorange=True,
-        # showgrid=True,
-        # gridwidth=1,
-        # gridcolor='lightgray',
-        # zeroline=True,
-        # zerolinewidth=1,
-        # zerolinecolor='gray'
-    ),
-    
-    # X轴配置（如果需要）
-    xaxis=dict(
-        # 如果你需要设置X轴标题字体，也是类似的
-        title=dict(
-            text="月度总工资 (元)",  # 或者保留使用 xaxis_title 参数
-            font=dict(
-                size=12,
-                family="Arial",
-                color="black"
-            )
+        yaxis3=dict(
+            title="边际税率 (%)",
+            titlefont=dict(color='#F18F01'),
+            tickfont=dict(color='#F18F01'),
+            anchor="free",
+            overlaying="y",
+            side="right",
+            position=0.95
         ),
-        tickfont=dict(
-            size=10,
-            family="Arial",
-            color="gray"
-        ),
-        
-        # 其他X轴配置
-        # tickmode='auto',
-        # nticks=10,
-        # showgrid=True,
-    ),
-    
-    # 其他布局配置（根据你的实际代码添加）
-    height=500,
-    width=800,
-    showlegend=True,
-    legend=dict(
-        x=0.01,
-        y=0.99,
-        bgcolor='rgba(255, 255, 255, 0.8)',
-        bordercolor='gray',
-        borderwidth=1
-    ),
-    plot_bgcolor='white',
-    paper_bgcolor='white',
-    margin=dict(l=50, r=50, t=50, b=50)
-)
+        hovermode="x unified",
+        template=chart_theme,
+        height=chart_height,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    )
     
     st.plotly_chart(fig_comprehensive, use_container_width=True)
 
@@ -795,5 +757,4 @@ st.caption("""
     3. 年终奖计算 = (基本工资+绩效工资) × 基本月数 × 绩效系数
     4. 月均收入分别显示包含和不包含年终奖的情况
     5. 数据仅供参考，实际纳税以税务机关规定为准
-
 """)
