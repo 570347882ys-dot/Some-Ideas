@@ -390,76 +390,146 @@ st.header("📈 可视化分析")
 tab1, tab2, tab3, tab4 = st.tabs(["综合曲线图", "收入构成", "边际税率分析", "工资结构分解"])
 
 with tab1:
-    # 综合曲线图 - 叠加多个指标
-    st.subheader("综合曲线图 (多指标叠加)")
+    # 综合曲线图 - 优化版本
+    st.subheader("薪资分析曲线图")
+    
+    # 获取当前月薪对应的数据点索引
+    current_monthly = current_result['月度总工资']
+    
+    # 找到最接近当前月薪的数据点
+    salary_range = comprehensive_data['月薪'].values
+    idx = np.argmin(np.abs(salary_range - current_monthly))
+    current_conversion_rate = comprehensive_data['收入转化率'].iloc[idx] * 100
+    current_after_tax = comprehensive_data['税后年收入'].iloc[idx]
     
     fig_comprehensive = go.Figure()
     
-    # 添加税后收入曲线
-    fig_comprehensive.add_trace(go.Scatter(
-        x=comprehensive_data['月薪'],
-        y=comprehensive_data['税后年收入'],
-        mode='lines',
-        name='税后年收入',
-        line=dict(color='#2E86AB', width=3),
-        yaxis='y'
-    ))
-    
-    # 添加收入转化率曲线（使用次坐标轴）
+    # 1. 添加收入转化率曲线 - 使用面积图
     fig_comprehensive.add_trace(go.Scatter(
         x=comprehensive_data['月薪'],
         y=comprehensive_data['收入转化率'] * 100,
         mode='lines',
-        name='收入转化率 (%)',
-        line=dict(color='#A23B72', width=2, dash='dash'),
-        yaxis='y2'
+        name='收入转化率',
+        line=dict(color='#4CAF50', width=4),
+        fill='tozeroy',
+        fillcolor='rgba(76, 175, 80, 0.2)',
+        hovertemplate='<b>收入转化率</b><br>月薪: %{x:,.0f}元<br>转化率: %{y:.1f}%<extra></extra>'
     ))
     
-    # 添加边际税率曲线
+    # 2. 添加税后年收入曲线（使用次坐标轴）
+    fig_comprehensive.add_trace(go.Scatter(
+        x=comprehensive_data['月薪'],
+        y=comprehensive_data['税后年收入'] / 10000,  # 转换为万元
+        mode='lines',
+        name='税后年收入(万元)',
+        line=dict(color='#2196F3', width=3, dash='dash'),
+        yaxis='y2',
+        hovertemplate='<b>税后年收入</b><br>月薪: %{x:,.0f}元<br>年收入: %{y:.1f}万元<extra></extra>'
+    ))
+    
+    # 3. 添加边际税率曲线（使用次坐标轴）
     fig_comprehensive.add_trace(go.Scatter(
         x=comprehensive_data['月薪'],
         y=comprehensive_data['边际税率'] * 100,
         mode='lines',
-        name='边际税率 (%)',
-        line=dict(color='#F18F01', width=2, dash='dot'),
-        yaxis='y3'
+        name='边际税率(%)',
+        line=dict(color='#FF9800', width=3, dash='dot'),
+        yaxis='y3',
+        hovertemplate='<b>边际税率</b><br>月薪: %{x:,.0f}元<br>税率: %{y:.1f}%<extra></extra>'
     ))
     
-    # 添加当前月薪标记线
-    current_monthly = current_result['月度总工资']
+    # 4. 添加当前月薪的强化标记点
+    fig_comprehensive.add_trace(go.Scatter(
+        x=[current_monthly],
+        y=[current_conversion_rate],
+        mode='markers+text',
+        name='当前薪资点',
+        marker=dict(
+            size=16,
+            color='#FF5252',
+            symbol='star',
+            line=dict(width=2, color='white')
+        ),
+        text=[f'{current_conversion_rate:.1f}%'],
+        textposition='top center',
+        textfont=dict(size=14, color='#FF5252', family="Arial Black"),
+        hovertemplate='<b>当前薪资点</b><br>月薪: %{x:,.0f}元<br>转化率: %{y:.1f}%<br>税后年收入: %{text}<extra></extra>'
+    ))
+    
+    # 5. 添加当前月薪的垂直线
     fig_comprehensive.add_vline(
         x=current_monthly, 
-        line_dash="dash", 
-        line_color="red",
+        line_dash="solid", 
+        line_color="rgba(255, 82, 82, 0.7)",
+        line_width=2,
         annotation_text=f"当前月薪: {current_monthly:,.0f}元",
-        annotation_position="top right"
+        annotation_position="top right",
+        annotation_font=dict(color='#FF5252', size=12),
+        annotation_bgcolor="rgba(255, 255, 255, 0.8)"
     )
+    
+    # 6. 添加收入转化率参考线（70%, 80%, 90%）
+    for rate, color, name in [(70, 'rgba(255, 152, 0, 0.3)', '70%参考线'), 
+                              (80, 'rgba(76, 175, 80, 0.3)', '80%参考线'), 
+                              (90, 'rgba(33, 150, 243, 0.3)', '90%参考线')]:
+        fig_comprehensive.add_hline(
+            y=rate,
+            line_dash="dash",
+            line_color=color,
+            line_width=1,
+            annotation_text=f"{name}",
+            annotation_position="right",
+            annotation_font=dict(size=10)
+        )
     
     # 更新布局
     fig_comprehensive.update_layout(
-        title="薪资综合分析曲线",
-        xaxis_title="月度总工资 (元)",
+        title=dict(
+            text='薪资综合分析曲线 - 以收入转化率为核心指标',
+            font=dict(size=20, color='#2C3E50'),
+            x=0.5,
+            xanchor='center'
+        ),
+        xaxis=dict(
+            title=dict(
+                text="月度总工资 (元)",
+                font=dict(size=14, color='#7F8C8D')
+            ),
+            gridcolor='rgba(0,0,0,0.05)',
+            showgrid=True,
+            tickformat=',.0f'
+        ),
         yaxis=dict(
-            title="税后年收入 (元)",
-            title_font=dict(color='#2E86AB'),
-            tickfont=dict(color='#2E86AB')
+            title=dict(
+                text="收入转化率 (%)",
+                font=dict(size=14, color='#4CAF50')
+            ),
+            gridcolor='rgba(0,0,0,0.05)',
+            showgrid=True,
+            range=[60, 100]  # 固定y轴范围，更好显示收入转化率
         ),
         yaxis2=dict(
-            title="收入转化率 (%)",
-            title_font=dict(color='#A23B72'),
-            tickfont=dict(color='#A23B72'),
+            title=dict(
+                text="税后年收入 (万元)",
+                font=dict(size=14, color='#2196F3')
+            ),
             anchor="x",
             overlaying="y",
-            side="right"
+            side="right",
+            gridcolor='rgba(0,0,0,0.02)',
+            showgrid=False
         ),
         yaxis3=dict(
-            title="边际税率 (%)",
-            title_font=dict(color='#F18F01'),
-            tickfont=dict(color='#F18F01'),
+            title=dict(
+                text="边际税率 (%)",
+                font=dict(size=14, color='#FF9800')
+            ),
             anchor="free",
             overlaying="y",
             side="right",
-            position=0.95
+            position=0.85,
+            gridcolor='rgba(0,0,0,0.02)',
+            showgrid=False
         ),
         hovermode="x unified",
         template=chart_theme,
@@ -469,11 +539,41 @@ with tab1:
             yanchor="bottom",
             y=1.02,
             xanchor="right",
-            x=1
-        )
+            x=1,
+            bgcolor="rgba(255, 255, 255, 0.8)",
+            bordercolor="rgba(0,0,0,0.1)",
+            borderwidth=1
+        ),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        margin=dict(t=80, b=80, l=80, r=100)
+    )
+    
+    # 添加图例说明
+    fig_comprehensive.add_annotation(
+        x=0.02,
+        y=1.05,
+        xref="paper",
+        yref="paper",
+        text="💡 收入转化率 = 税后收入 / 税前收入",
+        showarrow=False,
+        font=dict(size=12, color='#7F8C8D'),
+        bgcolor="rgba(255, 255, 255, 0.7)",
+        bordercolor="#DDD",
+        borderwidth=1,
+        borderpad=4
     )
     
     st.plotly_chart(fig_comprehensive, use_container_width=True)
+    
+    # 添加当前点的详细数据
+    st.info(f"""
+    **当前薪资点详细分析**：
+    - 📊 **月薪**: {current_monthly:,.0f}元
+    - 💰 **收入转化率**: {current_conversion_rate:.1f}% 
+    - 🏦 **税后年收入**: {current_after_tax:,.0f}元 ({current_after_tax/10000:.1f}万元)
+    - 📈 **边际税率**: {current_result['边际税率']*100:.1f}%
+    """)
 
 with tab2:
     # 收入构成分析
