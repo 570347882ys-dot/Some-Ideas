@@ -150,7 +150,7 @@ def generate_comprehensive_data(base_salary, performance_salary, bonus_base_mont
                                performance_multiplier, ss_base, hf_base, 
                                additional_deductions=0, include_performance_in_bonus=True):
     """生成综合对比数据"""
-    salary_range = np.arange(5000, 85001, 500)
+    salary_range = np.arange(5000, 100001, 500)
     
     data = {
         '月薪': [],
@@ -1701,6 +1701,7 @@ st.caption("""
        - 蓝色调/暖色调：特色配色方案
     9. 数据仅供参考，实际纳税以税务机关规定为准
 """)
+
 
 
 
