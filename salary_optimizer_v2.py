@@ -181,50 +181,6 @@ def generate_comprehensive_data(base_salary, performance_salary, bonus_base_mont
     
     return pd.DataFrame(data)
 
-# ---------------------- 辅助函数：生成带箭头的HTML ----------------------
-def format_with_arrow(value, change, is_marginal_tax=False):
-    """格式化数值，根据变化值添加箭头和颜色"""
-    if change > 0:
-        arrow = "↑"  # 上升箭头
-        color = "red" if is_marginal_tax else "green"  # 边际税率上升为红色，其他为绿色
-    elif change < 0:
-        arrow = "↓"  # 下降箭头
-        color = "green" if is_marginal_tax else "red"  # 边际税率下降为绿色，其他为红色
-    else:
-        return value
-    
-    return f'<span style="color:{color}; font-weight:bold;">{value} {arrow}</span>'
-
-def format_change_value(change_value, is_marginal_tax=False):
-    """格式化变化值，添加箭头和颜色"""
-    # 提取数值部分
-    if isinstance(change_value, str):
-        # 处理形如"+1,000元"的字符串
-        if "元" in change_value:
-            num_str = change_value.replace("元", "").replace("+", "").replace(",", "")
-        elif "%" in change_value:
-            num_str = change_value.replace("%", "").replace("+", "").replace(",", "")
-        else:
-            num_str = change_value.replace("+", "").replace(",", "")
-        
-        try:
-            change_num = float(num_str)
-        except:
-            return change_value
-    else:
-        change_num = change_value
-    
-    if change_num > 0:
-        arrow = "↑"
-        color = "red" if is_marginal_tax else "green"
-    elif change_num < 0:
-        arrow = "↓"
-        color = "green" if is_marginal_tax else "red"
-    else:
-        return change_value
-    
-    return f'<span style="color:{color}; font-weight:bold;">{change_value} {arrow}</span>'
-
 # ---------------------- 页面标题和说明 ----------------------
 st.title("💰 薪资结构优化分析系统 v2.0")
 st.markdown("""
@@ -234,12 +190,6 @@ st.markdown("""
     }
     .stButton > button {
         width: 100%;
-    }
-    .dataframe th {
-        background-color: #f0f2f6;
-    }
-    .dataframe td {
-        text-align: center;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -385,167 +335,33 @@ comprehensive_data = generate_comprehensive_data(
 # 关键指标显示
 st.header("📊 关键指标概览")
 
-# 如果有对比数据，计算变化量并显示箭头
-if enable_comparison:
-    # 计算旧工作结果
-    old_result = calculate_one_scenario(
-        old_base_salary, old_performance_salary, old_bonus_months,
-        old_performance_multiplier, ss_base, hf_base, additional_deductions,
-        old_include_performance_in_bonus
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.metric(
+        "月度总工资", 
+        f"{current_result['月度总工资']:,.0f}元",
+        f"基本{current_result['基本工资']:,.0f}+绩效{current_result['绩效工资']:,.0f}"
     )
-    
-    # 计算变化量
-    monthly_change = current_result['月度总工资'] - old_result['月度总工资']
-    bonus_change = current_result['年终奖金额'] - old_result['年终奖金额']
-    after_tax_change = current_result['税后年收入'] - old_result['税后年收入']
-    conversion_rate_change = (current_result['收入转化率'] - old_result['收入转化率']) * 100
-    marginal_rate_change = (current_result['边际税率'] - old_result['边际税率']) * 100
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        # 月度总工资变化显示
-        if monthly_change > 0:
-            delta_display = f"↑{monthly_change:+,.0f}元"
-            delta_color = "normal"
-        elif monthly_change < 0:
-            delta_display = f"↓{monthly_change:+,.0f}元"
-            delta_color = "inverse"
-        else:
-            delta_display = f"无变化"
-            delta_color = "off"
-        
-        st.metric(
-            "月度总工资", 
-            f"{current_result['月度总工资']:,.0f}元",
-            delta=delta_display,
-            delta_color=delta_color
-        )
-    
-    with col2:
-        # 年终奖变化显示
-        if bonus_change > 0:
-            delta_display = f"↑{bonus_change:+,.0f}元"
-            delta_color = "normal"
-        elif bonus_change < 0:
-            delta_display = f"↓{bonus_change:+,.0f}元"
-            delta_color = "inverse"
-        else:
-            delta_display = f"无变化"
-            delta_color = "off"
-        
-        st.metric(
-            "年终奖", 
-            f"{current_result['年终奖金额']:,.0f}元",
-            delta=delta_display,
-            delta_color=delta_color
-        )
-    
-    with col3:
-        # 税后年收入变化显示
-        if after_tax_change > 0:
-            delta_display = f"↑{after_tax_change:+,.0f}元"
-            delta_color = "normal"
-        elif after_tax_change < 0:
-            delta_display = f"↓{after_tax_change:+,.0f}元"
-            delta_color = "inverse"
-        else:
-            delta_display = f"无变化"
-            delta_color = "off"
-        
-        st.metric(
-            "税后年收入", 
-            f"{current_result['税后年收入']:,.0f}元",
-            delta=delta_display,
-            delta_color=delta_color
-        )
-    
-    with col4:
-        # 边际税率变化显示（逻辑相反：上涨为红色↑，下降为绿色↓）
-        if marginal_rate_change > 0:
-            delta_display = f"↑{marginal_rate_change:+,.1f}%"
-            delta_color = "inverse"  # 税率上升为负面，显示红色
-        elif marginal_rate_change < 0:
-            delta_display = f"↓{marginal_rate_change:+,.1f}%"
-            delta_color = "normal"   # 税率下降为正面，显示绿色
-        else:
-            delta_display = f"无变化"
-            delta_color = "off"
-        
-        st.metric(
-            "边际税率", 
-            f"{current_result['边际税率']*100:.1f}%",
-            delta=delta_display,
-            delta_color=delta_color
-        )
-    
-    # 显示转化率变化（如果需要，可以添加额外的指标卡）
-    col1, col2 = st.columns(2)
-    with col1:
-        # 收入转化率变化显示
-        if conversion_rate_change > 0:
-            delta_display = f"↑{conversion_rate_change:+,.1f}%"
-            delta_color = "normal"
-        elif conversion_rate_change < 0:
-            delta_display = f"↓{conversion_rate_change:+,.1f}%"
-            delta_color = "inverse"
-        else:
-            delta_display = f"无变化"
-            delta_color = "off"
-        
-        st.metric(
-            "收入转化率", 
-            f"{current_result['收入转化率']*100:.1f}%",
-            delta=delta_display,
-            delta_color=delta_color
-        )
-    
-    with col2:
-        # 月均到手收入变化显示
-        monthly_income_change = current_result['月均到手(含年终奖)'] - old_result['月均到手(含年终奖)']
-        if monthly_income_change > 0:
-            delta_display = f"↑{monthly_income_change:+,.0f}元"
-            delta_color = "normal"
-        elif monthly_income_change < 0:
-            delta_display = f"↓{monthly_income_change:+,.0f}元"
-            delta_color = "inverse"
-        else:
-            delta_display = f"无变化"
-            delta_color = "off"
-        
-        st.metric(
-            "月均到手(含年终奖)", 
-            f"{current_result['月均到手(含年终奖)']:,.0f}元",
-            delta=delta_display,
-            delta_color=delta_color
-        )
-else:
-    # 没有对比数据时，只显示当前值
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric(
-            "月度总工资", 
-            f"{current_result['月度总工资']:,.0f}元",
-            f"基本{current_result['基本工资']:,.0f}+绩效{current_result['绩效工资']:,.0f}"
-        )
-    with col2:
-        st.metric(
-            "年终奖", 
-            f"{current_result['年终奖金额']:,.0f}元",
-            f"{current_result['年终奖月数']}月×{current_result['绩效系数']}倍"
-        )
-    with col3:
-        st.metric(
-            "税后年收入", 
-            f"{current_result['税后年收入']:,.0f}元",
-            f"{current_result['收入转化率']*100:.1f}%转化率"
-        )
-    with col4:
-        st.metric(
-            "边际税率", 
-            f"{current_result['边际税率']*100:.1f}%",
-            "综合所得税率"
-        )
+with col2:
+    # 显示年终奖计算方式
+    bonus_base_desc = f"基数: {current_result['年终奖基数']:,.0f}元"
+    st.metric(
+        "年终奖", 
+        f"{current_result['年终奖金额']:,.0f}元",
+        f"{current_result['年终奖月数']}月×{current_result['绩效系数']}倍 ({current_result['年终奖计算方式']})"
+    )
+with col3:
+    st.metric(
+        "税后年收入", 
+        f"{current_result['税后年收入']:,.0f}元",
+        f"{current_result['收入转化率']*100:.1f}%转化率"
+    )
+with col4:
+    st.metric(
+        "边际税率", 
+        f"{current_result['边际税率']*100:.1f}%",
+        "综合所得税率"
+    )
 
 # 月均收入对比
 st.subheader("📅 月均收入分析")
@@ -945,54 +761,15 @@ if enable_comparison:
         old_include_performance_in_bonus
     )
     
-    # 创建对比数据（包含原始数值用于计算）
-    comparison_raw_data = {
-        '项目': ['月度总工资', '基本工资', '绩效工资', '年终奖金额', '税前年收入', 
-                '税后年收入', '收入转化率', '边际税率', '月均到手(含年终奖)'],
-        '原工作数值': [
-            old_result['月度总工资'],
-            old_result['基本工资'],
-            old_result['绩效工资'],
-            old_result['年终奖金额'],
-            old_result['税前年收入'],
-            old_result['税后年收入'],
-            old_result['收入转化率'],
-            old_result['边际税率'],
-            old_result['月均到手(含年终奖)']
-        ],
-        '现工作数值': [
-            current_result['月度总工资'],
-            current_result['基本工资'],
-            current_result['绩效工资'],
-            current_result['年终奖金额'],
-            current_result['税前年收入'],
-            current_result['税后年收入'],
-            current_result['收入转化率'],
-            current_result['边际税率'],
-            current_result['月均到手(含年终奖)']
-        ]
-    }
-    
-    # 计算变化值
-    comparison_raw_data['变化数值'] = [
-        current_result['月度总工资'] - old_result['月度总工资'],
-        current_result['基本工资'] - old_result['基本工资'],
-        current_result['绩效工资'] - old_result['绩效工资'],
-        current_result['年终奖金额'] - old_result['年终奖金额'],
-        current_result['税前年收入'] - old_result['税前年收入'],
-        current_result['税后年收入'] - old_result['税后年收入'],
-        (current_result['收入转化率'] - old_result['收入转化率']) * 100,
-        (current_result['边际税率'] - old_result['边际税率']) * 100,
-        current_result['月均到手(含年终奖)'] - old_result['月均到手(含年终奖)']
-    ]
-    
-    # 创建格式化后的数据
+    # 创建对比表格
     comparison_data = {
-        '项目': comparison_raw_data['项目'],
+        '项目': ['月度总工资', '基本工资', '绩效工资', '年终奖计算方式', '年终奖金额', '税前年收入', 
+                '税后年收入', '收入转化率', '边际税率', '月均到手(含年终奖)'],
         '原工作': [
             f"{old_result['月度总工资']:,.0f}元",
             f"{old_result['基本工资']:,.0f}元",
             f"{old_result['绩效工资']:,.0f}元",
+            f"{old_result['年终奖计算方式']}",
             f"{old_result['年终奖金额']:,.0f}元",
             f"{old_result['税前年收入']:,.0f}元",
             f"{old_result['税后年收入']:,.0f}元",
@@ -1000,142 +777,34 @@ if enable_comparison:
             f"{old_result['边际税率']*100:.1f}%",
             f"{old_result['月均到手(含年终奖)']:,.0f}元"
         ],
-        '现工作': [],
-        '变化': []
+        '现工作': [
+            f"{current_result['月度总工资']:,.0f}元",
+            f"{current_result['基本工资']:,.0f}元",
+            f"{current_result['绩效工资']:,.0f}元",
+            f"{current_result['年终奖计算方式']}",
+            f"{current_result['年终奖金额']:,.0f}元",
+            f"{current_result['税前年收入']:,.0f}元",
+            f"{current_result['税后年收入']:,.0f}元",
+            f"{current_result['收入转化率']*100:.1f}%",
+            f"{current_result['边际税率']*100:.1f}%",
+            f"{current_result['月均到手(含年终奖)']:,.0f}元"
+        ],
+        '变化': [
+            f"{current_result['月度总工资'] - old_result['月度总工资']:+,.0f}元",
+            f"{current_result['基本工资'] - old_result['基本工资']:+,.0f}元",
+            f"{current_result['绩效工资'] - old_result['绩效工资']:+,.0f}元",
+            "-",
+            f"{current_result['年终奖金额'] - old_result['年终奖金额']:+,.0f}元",
+            f"{current_result['税前年收入'] - old_result['税前年收入']:+,.0f}元",
+            f"{current_result['税后年收入'] - old_result['税后年收入']:+,.0f}元",
+            f"{(current_result['收入转化率'] - old_result['收入转化率'])*100:+.1f}%",
+            f"{(current_result['边际税率'] - old_result['边际税率'])*100:+.1f}%",
+            f"{current_result['月均到手(含年终奖)'] - old_result['月均到手(含年终奖)']:+,.0f}元"
+        ]
     }
     
-    # 为现工作和变化列添加箭头和颜色标记
-    for i, item in enumerate(comparison_raw_data['项目']):
-        # 判断是否为边际税率
-        is_marginal_tax = (item == '边际税率')
-        
-        # 获取变化值
-        change_value = comparison_raw_data['变化数值'][i]
-        
-        # 格式化现工作值（带箭头）
-        current_value = comparison_raw_data['现工作数值'][i]
-        old_value = comparison_raw_data['原工作数值'][i]
-        
-        if isinstance(current_value, (int, float)):
-            if is_marginal_tax:
-                # 边际税率：现工作值 < 原工作值 为正面（绿色↓），反之为负面（红色↑）
-                if current_value < old_value:
-                    arrow = "↓"
-                    color = "green"
-                elif current_value > old_value:
-                    arrow = "↑"
-                    color = "red"
-                else:
-                    arrow = ""
-                    color = "black"
-            else:
-                # 其他指标：现工作值 > 原工作值 为正面（绿色↑），反之为负面（红色↓）
-                if current_value > old_value:
-                    arrow = "↑"
-                    color = "green"
-                elif current_value < old_value:
-                    arrow = "↓"
-                    color = "red"
-                else:
-                    arrow = ""
-                    color = "black"
-            
-            # 根据指标类型格式化数值
-            if item in ['收入转化率', '边际税率']:
-                formatted_value = f"{current_value*100:.1f}%" if item == '收入转化率' else f"{current_value*100:.1f}%"
-                comparison_data['现工作'].append(f'<span style="color:{color}; font-weight:bold;">{formatted_value} {arrow}</span>')
-            else:
-                comparison_data['现工作'].append(f'<span style="color:{color}; font-weight:bold;">{current_value:,.0f}元 {arrow}</span>')
-        else:
-            comparison_data['现工作'].append(f"{current_value:,.0f}元")
-        
-        # 格式化变化值（带箭头）
-        if is_marginal_tax:
-            # 边际税率：变化值为负为正面（绿色↓），正为负面（红色↑）
-            if change_value < 0:
-                arrow = "↓"
-                color = "green"
-            elif change_value > 0:
-                arrow = "↑"
-                color = "red"
-            else:
-                arrow = ""
-                color = "black"
-        else:
-            # 其他指标：变化值为正为正面（绿色↑），负为负面（红色↓）
-            if change_value > 0:
-                arrow = "↑"
-                color = "green"
-            elif change_value < 0:
-                arrow = "↓"
-                color = "red"
-            else:
-                arrow = ""
-                color = "black"
-        
-        # 根据指标类型格式化变化值
-        if item in ['收入转化率', '边际税率']:
-            formatted_change = f"{change_value:+.1f}%"
-        else:
-            formatted_change = f"{change_value:+,.0f}元"
-        
-        comparison_data['变化'].append(f'<span style="color:{color}; font-weight:bold;">{formatted_change} {arrow}</span>')
-    
-    # 创建HTML表格
-    html_table = """
-    <style>
-    .comparison-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-family: Arial, sans-serif;
-    }
-    .comparison-table th {
-        background-color: #f2f2f2;
-        padding: 12px;
-        text-align: center;
-        border: 1px solid #ddd;
-        font-weight: bold;
-    }
-    .comparison-table td {
-        padding: 10px;
-        text-align: center;
-        border: 1px solid #ddd;
-    }
-    .comparison-table tr:nth-child(even) {
-        background-color: #f9f9f9;
-    }
-    .comparison-table tr:hover {
-        background-color: #f5f5f5;
-    }
-    </style>
-    <table class="comparison-table">
-        <thead>
-            <tr>
-                <th>项目</th>
-                <th>原工作</th>
-                <th>现工作</th>
-                <th>变化</th>
-            </tr>
-        </thead>
-        <tbody>
-    """
-    
-    for i in range(len(comparison_data['项目'])):
-        html_table += f"""
-            <tr>
-                <td>{comparison_data['项目'][i]}</td>
-                <td>{comparison_data['原工作'][i]}</td>
-                <td>{comparison_data['现工作'][i]}</td>
-                <td>{comparison_data['变化'][i]}</td>
-            </tr>
-        """
-    
-    html_table += """
-        </tbody>
-    </table>
-    """
-    
-    st.markdown(html_table, unsafe_allow_html=True)
+    comparison_df = pd.DataFrame(comparison_data)
+    st.dataframe(comparison_df, use_container_width=True, hide_index=True)
     
     # 收入变化可视化
     fig_comparison = go.Figure()
